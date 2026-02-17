@@ -1,5 +1,19 @@
 import type { Metadata } from 'next'
+import Image from 'next/image'
 import Link from 'next/link'
+import {
+  ShieldCheck,
+  Award,
+  Star,
+  Phone,
+  Users,
+  Globe,
+  Building2,
+  Search,
+  ArrowRight,
+  Quote,
+  MapPin,
+} from 'lucide-react'
 import { createServerClient } from '@/lib/supabase'
 import HeroSearch from '@/components/HeroSearch'
 import USMap from '@/components/USMap'
@@ -32,31 +46,64 @@ const STATE_NAMES: Record<string, string> = {
 const FEATURES = [
   {
     title: 'Verified Providers',
-    desc: 'Every listing has been cross-checked for backflow testing mentions on their actual website — not just claimed services.',
-    icon: (
-      <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={1.75} viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 01-1.043 3.296 3.745 3.745 0 01-3.296 1.043A3.745 3.745 0 0112 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 01-3.296-1.043 3.745 3.745 0 01-1.043-3.296A3.745 3.745 0 013 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 011.043-3.296 3.746 3.746 0 013.296-1.043A3.746 3.746 0 0112 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 013.296 1.043 3.746 3.746 0 011.043 3.296A3.745 3.745 0 0121 12z" />
-      </svg>
-    ),
+    desc: "Every listing is cross-checked for real backflow testing mentions on the provider's website — not just categories.",
+    icon: <ShieldCheck className="w-6 h-6" />,
   },
   {
     title: 'Real Google Ratings',
-    desc: 'Live ratings and review counts pulled directly from Google Maps so you can hire with confidence.',
-    icon: (
-      <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={1.75} viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
-      </svg>
-    ),
+    desc: 'Live ratings and review counts pulled from Google so you can choose with confidence.',
+    icon: <Star className="w-6 h-6" />,
   },
   {
     title: 'Local & Specific',
-    desc: 'Browse by state → city to find certified testers in your exact service area, not national chains.',
-    icon: (
-      <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={1.75} viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
-        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
-      </svg>
-    ),
+    desc: 'Browse by state \u2192 city to find certified testers in your exact service area, not national chains.',
+    icon: <MapPin className="w-6 h-6" />,
+  },
+]
+
+const TRUST_ITEMS = [
+  { label: 'Municipal-compliant testing', icon: <ShieldCheck className="w-4 h-4" /> },
+  { label: 'Licensed & insured pros', icon: <Award className="w-4 h-4" /> },
+  { label: 'Real Google ratings', icon: <Star className="w-4 h-4" /> },
+  { label: 'Contact providers directly', icon: <Phone className="w-4 h-4" /> },
+]
+
+const STEPS = [
+  {
+    num: '1',
+    title: 'Search by city or ZIP',
+    desc: 'Enter your location to find nearby certified backflow testers.',
+    icon: <Search className="w-6 h-6" />,
+  },
+  {
+    num: '2',
+    title: 'Compare verified providers',
+    desc: 'Review ratings, services, and contact info side by side.',
+    icon: <Users className="w-6 h-6" />,
+  },
+  {
+    num: '3',
+    title: 'Call or visit their website',
+    desc: 'Contact providers directly — no middleman, no fees.',
+    icon: <Phone className="w-6 h-6" />,
+  },
+]
+
+const TESTIMONIALS = [
+  {
+    quote: 'Found a certified tester in minutes. Way easier than calling around.',
+    author: 'Homeowner',
+    location: 'CA',
+  },
+  {
+    quote: 'Great for managing multiple properties across different cities.',
+    author: 'Property Manager',
+    location: 'TX',
+  },
+  {
+    quote: 'Helped us prep for inspection fast with providers that actually do backflow testing.',
+    author: 'HOA Admin',
+    location: 'FL',
   },
 ]
 
@@ -79,85 +126,105 @@ export default async function HomePage() {
   return (
     <div>
       {/* ── HERO ─────────────────────────────────────────────────────────────── */}
-      <section className="relative min-h-[560px] flex items-center overflow-hidden bg-gray-900">
-        {/* Background: real image if available, else gradient */}
-        {/* TODO: drop a high-res image at public/hero.jpg */}
-        {/* <Image src="/hero.jpg" alt="Plumber performing backflow test" fill className="object-cover opacity-40" priority /> */}
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-900 via-blue-800 to-slate-900" />
+      <section className="relative min-h-[600px] flex items-center overflow-hidden">
+        {/* Hero background image */}
+        <Image
+          src="/hero-backflow.png"
+          alt="Technician performing backflow test"
+          fill
+          className="object-cover"
+          priority
+          sizes="100vw"
+        />
 
-        {/* Decorative water-pipe pattern */}
-        <div className="absolute inset-0 opacity-10">
-          <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-              <pattern id="pipes" x="0" y="0" width="60" height="60" patternUnits="userSpaceOnUse">
-                <path d="M0 30h60M30 0v60" stroke="white" strokeWidth="1" fill="none" />
-                <circle cx="30" cy="30" r="4" fill="none" stroke="white" strokeWidth="1" />
-              </pattern>
-            </defs>
-            <rect width="100%" height="100%" fill="url(#pipes)" />
-          </svg>
-        </div>
+        {/* Dark gradient overlay for text readability */}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/45 to-black/70" />
 
-        <div className="relative section py-20 w-full">
+        <div className="relative section py-20 sm:py-28 w-full">
           <div className="max-w-2xl">
-            <div className="inline-flex items-center gap-2 bg-blue-500/20 border border-blue-400/30 text-blue-200 text-xs font-semibold px-3 py-1.5 rounded-full mb-6 backdrop-blur-sm">
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
-              {totalProviders.toLocaleString()} verified providers across {states.length} states
+            {/* Trust pill */}
+            <div className="inline-flex items-center gap-2 bg-white/10 border border-white/15 text-blue-200 text-xs font-medium px-3.5 py-2 rounded-full mb-8 backdrop-blur-md">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              {totalProviders.toLocaleString()}+ verified providers across {states.length} states
             </div>
 
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white leading-tight mb-5">
-              Find Certified<br />
-              <span className="text-blue-300">Backflow Testers</span><br />
+            {/* Headline */}
+            <h1 className="text-4xl sm:text-5xl lg:text-[3.5rem] font-extrabold text-white leading-[1.1] mb-5">
+              Find Certified{' '}
+              <span className="text-blue-400">Backflow Testers</span>{' '}
               Near You
             </h1>
 
-            <p className="text-lg text-blue-100 mb-8 leading-relaxed max-w-xl">
-              Verified pros offering RPZ inspection, cross-connection control,
+            <p className="text-lg sm:text-xl text-gray-300 mb-8 leading-relaxed max-w-xl">
+              Verified pros for RPZ inspection, cross-connection control,
               and annual backflow testing — required by most municipalities.
             </p>
 
             {/* Search box (client component) */}
             <HeroSearch />
 
-            <Link href="#states" className="mt-4 inline-block text-blue-300 hover:text-white text-sm underline underline-offset-2 transition-colors">
-              Or browse all states →
+            <Link
+              href="#states"
+              className="mt-5 inline-flex items-center gap-1.5 text-blue-300 hover:text-white text-sm transition-colors group"
+            >
+              Or browse all states
+              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
             </Link>
+
+            {/* Trust strip */}
+            <div className="mt-10 grid grid-cols-2 sm:flex sm:flex-wrap gap-x-6 gap-y-3 text-sm text-gray-400">
+              {TRUST_ITEMS.map(({ label, icon }) => (
+                <div key={label} className="flex items-center gap-2">
+                  <span className="text-blue-400">{icon}</span>
+                  {label}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>
 
       {/* ── STATS BAR ─────────────────────────────────────────────────────────── */}
       <section className="bg-white border-b border-gray-100">
-        <div className="section py-5">
-          <div className="grid grid-cols-3 gap-4 text-center divide-x divide-gray-100">
+        <div className="section py-10">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 sm:gap-4 text-center sm:divide-x divide-gray-100">
             {[
-              { label: 'Verified Providers', value: `${totalProviders.toLocaleString()}+` },
-              { label: 'States Covered', value: `${states.length}` },
-              { label: 'Cities Listed', value: `${(cities?.length ?? 0).toLocaleString()}+` },
-            ].map(({ label, value }) => (
-              <div key={label} className="px-4">
-                <p className="text-2xl sm:text-3xl font-bold text-blue-700">{value}</p>
-                <p className="text-xs sm:text-sm text-gray-500 mt-0.5">{label}</p>
+              { label: 'Verified Providers', value: `${totalProviders.toLocaleString()}+`, icon: <Users className="w-5 h-5" /> },
+              { label: 'States Covered', value: `${states.length}`, icon: <Globe className="w-5 h-5" /> },
+              { label: 'Cities Listed', value: `${(cities?.length ?? 0).toLocaleString()}+`, icon: <Building2 className="w-5 h-5" /> },
+            ].map(({ label, value, icon }, i) => (
+              <div
+                key={label}
+                className="px-4 flex flex-col items-center animate-fade-up"
+                style={{ animationDelay: `${i * 150}ms` }}
+              >
+                <div className="text-blue-600 mb-2">{icon}</div>
+                <p className="text-3xl sm:text-4xl font-extrabold text-gray-900">{value}</p>
+                <p className="text-sm text-gray-500 mt-1">{label}</p>
               </div>
             ))}
           </div>
+          <p className="text-center text-xs text-gray-400 mt-6">Updated regularly from public records &amp; Google Maps</p>
         </div>
       </section>
 
-      {/* ── FEATURES ─────────────────────────────────────────────────────────── */}
-      <section className="py-16 bg-white border-t border-gray-100">
+      {/* ── WHY CHOOSE US ─────────────────────────────────────────────────────── */}
+      <section className="py-20 bg-white">
         <div className="section">
-          <div className="text-center mb-10">
+          <div className="text-center mb-12">
             <p className="text-xs font-semibold text-blue-600 uppercase tracking-widest mb-2">Why choose us</p>
-            <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">Built for Homeowners & Property Managers</h2>
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">Built for Homeowners &amp; Property Managers</h2>
           </div>
-          <div className="grid sm:grid-cols-3 gap-6">
+          <div className="grid sm:grid-cols-3 gap-8">
             {FEATURES.map(({ title, desc, icon }) => (
-              <div key={title} className="p-6 rounded-2xl bg-gray-50 border border-gray-100 hover:border-blue-100 hover:bg-blue-50/30 transition-colors">
-                <div className="w-11 h-11 rounded-xl bg-blue-600 text-white flex items-center justify-center mb-4">
+              <div
+                key={title}
+                className="group p-8 rounded-2xl bg-white border border-gray-200 hover:border-blue-200 hover:shadow-lg transition-all duration-300"
+              >
+                <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mb-5 group-hover:bg-blue-600 group-hover:text-white transition-colors duration-300">
                   {icon}
                 </div>
-                <h3 className="font-bold text-gray-900 mb-2">{title}</h3>
+                <h3 className="font-bold text-gray-900 text-lg mb-2">{title}</h3>
                 <p className="text-gray-600 text-sm leading-relaxed">{desc}</p>
               </div>
             ))}
@@ -165,19 +232,64 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* ── BROWSE BY STATE ───────────────────────────────────────────────────── */}
-      <section id="states" className="py-14 bg-gray-50">
+      {/* ── HOW IT WORKS ──────────────────────────────────────────────────────── */}
+      <section className="py-20 bg-gray-50 border-t border-gray-100">
         <div className="section">
-          <div className="mb-7">
+          <div className="text-center mb-14">
+            <p className="text-xs font-semibold text-blue-600 uppercase tracking-widest mb-2">How it works</p>
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">Find a Tester in 3 Steps</h2>
+          </div>
+          <div className="grid sm:grid-cols-3 gap-10 sm:gap-8 relative">
+            {/* Connector line (desktop only) */}
+            <div className="hidden sm:block absolute top-10 left-[20%] right-[20%] h-px bg-blue-200" />
+
+            {STEPS.map(({ num, title, desc, icon }) => (
+              <div key={num} className="relative text-center">
+                <div className="w-20 h-20 mx-auto rounded-full bg-white border-2 border-blue-100 text-blue-600 flex items-center justify-center mb-5 relative z-10 shadow-sm">
+                  {icon}
+                </div>
+                <div className="text-xs font-bold text-blue-600 uppercase tracking-wide mb-1">Step {num}</div>
+                <h3 className="font-bold text-gray-900 mb-2">{title}</h3>
+                <p className="text-gray-500 text-sm leading-relaxed max-w-xs mx-auto">{desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── BROWSE BY STATE ───────────────────────────────────────────────────── */}
+      <section id="states" className="py-10 bg-white border-t border-gray-100">
+        <div className="section">
+          <div className="mb-4">
             <p className="text-xs font-semibold text-blue-600 uppercase tracking-widest mb-1">Directory</p>
             <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">Browse by State</h2>
-            <p className="text-sm text-gray-500 mt-1">Hover a state to see provider count — click to browse listings</p>
           </div>
 
           <USMap
             stateCounts={Object.fromEntries(states)}
             stateNames={STATE_NAMES}
           />
+        </div>
+      </section>
+
+      {/* ── TESTIMONIALS ──────────────────────────────────────────────────────── */}
+      <section className="py-20 bg-gray-50 border-t border-gray-100">
+        <div className="section">
+          <div className="text-center mb-12">
+            <p className="text-xs font-semibold text-blue-600 uppercase tracking-widest mb-2">Social proof</p>
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">Trusted by Homeowners &amp; Property Managers</h2>
+          </div>
+          <div className="grid sm:grid-cols-3 gap-8">
+            {TESTIMONIALS.map(({ quote, author, location }) => (
+              <div key={author} className="p-8 rounded-2xl bg-white border border-gray-100 shadow-sm">
+                <Quote className="w-8 h-8 text-blue-100 mb-4" />
+                <p className="text-gray-700 leading-relaxed mb-6">&ldquo;{quote}&rdquo;</p>
+                <p className="text-sm font-semibold text-gray-900">
+                  &mdash; {author}, <span className="text-gray-500">{location}</span>
+                </p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
     </div>

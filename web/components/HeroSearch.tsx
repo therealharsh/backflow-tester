@@ -176,8 +176,8 @@ export default function HeroSearch() {
   }
 
   return (
-    <div className="relative w-full max-w-lg">
-      <form onSubmit={handleSubmit} className="flex gap-2">
+    <div className="relative w-full max-w-xl">
+      <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-2.5">
         <div className="relative flex-1">
           <input
             ref={inputRef}
@@ -189,44 +189,34 @@ export default function HeroSearch() {
             placeholder="City, state or ZIP code…"
             autoComplete="off"
             spellCheck={false}
-            className="w-full px-4 py-3.5 pr-10 rounded-xl bg-white/10 border border-white/20 text-white placeholder-blue-200 focus:outline-none focus:ring-2 focus:ring-white/40 focus:bg-white/15 backdrop-blur-sm text-sm transition-all"
+            className="w-full px-5 py-4 pr-11 rounded-xl bg-white text-gray-900 placeholder-gray-400 border-0 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-lg text-[15px] transition-all"
             aria-label="Search by city, state, or ZIP code"
             aria-autocomplete="list"
             aria-expanded={open}
             aria-controls="search-suggestions"
           />
           {/* Spinner / search icon */}
-          <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+          <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
             {loading ? (
-              <svg className="w-4 h-4 text-blue-200 animate-spin" fill="none" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 text-gray-400 animate-spin" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
             ) : (
-              <svg className="w-4 h-4 text-blue-300" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
             )}
           </div>
-        </div>
 
-        <button
-          type="submit"
-          className="px-6 py-3.5 bg-blue-500 hover:bg-blue-400 active:bg-blue-600 text-white font-semibold rounded-xl transition-colors text-sm whitespace-nowrap shadow-lg shadow-blue-900/30"
-        >
-          Find Testers
-        </button>
-      </form>
-
-      {/* Dropdown */}
-      {open && suggestions.length > 0 && (
-        <div
-          id="search-suggestions"
-          ref={dropdownRef}
-          role="listbox"
-          className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden z-50"
-          style={{ right: '96px' }}  // align under input, not button
-        >
+          {/* Dropdown (inside input container so it matches input width) */}
+          {open && suggestions.length > 0 && (
+            <div
+              id="search-suggestions"
+              ref={dropdownRef}
+              role="listbox"
+              className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden z-50"
+            >
           {suggestions.map((s, i) => (
             <button
               key={s.href}
@@ -257,8 +247,17 @@ export default function HeroSearch() {
               )}
             </button>
           ))}
+          </div>
+          )}
         </div>
-      )}
+
+        <button
+          type="submit"
+          className="px-7 py-4 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-semibold rounded-xl transition-colors text-[15px] whitespace-nowrap shadow-lg shadow-blue-900/40 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-transparent"
+        >
+          Find Certified Testers
+        </button>
+      </form>
     </div>
   )
 }

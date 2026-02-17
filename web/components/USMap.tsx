@@ -58,7 +58,8 @@ export default function USMap({ stateCounts, stateNames }: Props) {
       <ComposableMap
         projection="geoAlbersUsa"
         width={960}
-        height={600}
+        height={520}
+        projectionConfig={{ scale: 1100 }}
         style={{ width: '100%', height: 'auto' }}
       >
         <Geographies geography={GEO_URL}>
@@ -120,13 +121,16 @@ export default function USMap({ stateCounts, stateNames }: Props) {
         </div>
       )}
 
-      {/* Legend */}
-      <div className="mt-2 flex items-center gap-2 justify-end pr-2 text-xs text-gray-500">
-        <span>Fewer</span>
-        {['#dbeafe', '#93c5fd', '#3b82f6', '#1d4ed8', '#1e3a8a'].map((c) => (
-          <span key={c} className="inline-block w-5 h-3 rounded-sm" style={{ background: c }} />
-        ))}
-        <span>More</span>
+      {/* Footer: hint + legend */}
+      <div className="mt-1 flex items-center justify-between px-1 text-xs text-gray-500">
+        <span>Hover a state to see provider count — click to browse listings</span>
+        <div className="flex items-center gap-2">
+          <span>Fewer</span>
+          {['#dbeafe', '#93c5fd', '#3b82f6', '#1d4ed8', '#1e3a8a'].map((c) => (
+            <span key={c} className="inline-block w-5 h-3 rounded-sm" style={{ background: c }} />
+          ))}
+          <span>More</span>
+        </div>
       </div>
     </div>
   )
