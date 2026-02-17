@@ -1,0 +1,44 @@
+# ── Dependencies ──
+node_modules/
+web/node_modules/
+
+# ── Build artifacts ──
+web/.next/
+web/tsconfig.tsbuildinfo
+*.tsbuildinfo
+
+# ── Environment / Secrets ──
+.env
+.env.local
+.env.*.local
+web/.env.local
+web/.env.*.local
+
+# ── OS files ──
+.DS_Store
+Thumbs.db
+
+# ── Python ──
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# ── Crawler runtime data / logs ──
+crawler/data/*.log
+crawler/data/*.json
+crawler/data/*.bak_*
+crawler/data/cleaning_report.md
+crawler/data/verifier_report.md
+crawler/data/image_enrichment_report.md
+
+# ── Large raw data files (reviews & services scraped content) ──
+data/reviews_raw/
+data/services_raw/
+
+# ── Misc ──
+*.log
+*.csv.bak
+test.csv
