@@ -50,3 +50,51 @@
   animation: fade-up 0.6s ease-out forwards;
   opacity: 0;
 }
+
+/* Blog content — rendered markdown */
+.blog-content {
+  @apply text-gray-800 leading-relaxed;
+}
+.blog-content h2 {
+  @apply text-2xl font-bold mt-10 mb-4;
+}
+.blog-content h3 {
+  @apply text-xl font-semibold mt-8 mb-3;
+}
+.blog-content p {
+  @apply mb-4;
+}
+.blog-content ul,
+.blog-content ol {
+  @apply mb-4 pl-6;
+}
+.blog-content ul {
+  @apply list-disc;
+}
+.blog-content ol {
+  @apply list-decimal;
+}
+.blog-content li {
+  @apply mb-1;
+}
+.blog-content a {
+  @apply text-blue-600 underline hover:text-blue-800;
+}
+.blog-content blockquote {
+  @apply border-l-4 border-blue-200 pl-4 italic text-gray-600 my-4;
+}
+.blog-content pre {
+  @apply bg-gray-100 rounded-xl p-4 overflow-x-auto mb-4 text-sm;
+}
+.blog-content code {
+  @apply bg-gray-100 rounded px-1.5 py-0.5 text-sm;
+}
+.blog-content pre code {
+  @apply bg-transparent p-0;
+}
+.blog-content img {
+  @apply rounded-xl my-6 max-w-full;
+}
+.blog-content hr {
+  @apply border-gray-200 my-8;
+}

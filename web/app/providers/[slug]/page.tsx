@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation'
 import { createServerClient } from '@/lib/supabase'
 import { chooseBestImage, parseImageUrls, isJunkImageUrl } from '@/lib/image-utils'
 import type { Provider, ProviderService, ProviderReview } from '@/types'
+import GetQuoteButton from '@/components/GetQuoteButton'
 
 interface Props {
   params: { slug: string }
@@ -490,17 +491,21 @@ export default async function ProviderPage({ params }: Props) {
               </div>
             ) : null}
 
-            {p.phone && (
-              <a
-                href={`tel:${p.phone}`}
-                className="flex items-center justify-center gap-2 w-full py-3 px-4 bg-blue-700 text-white font-semibold rounded-xl hover:bg-blue-800 transition-colors"
-              >
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" />
-                </svg>
-                Call Now
-              </a>
-            )}
+            <GetQuoteButton
+              variant="sidebar"
+              provider={{
+                name: p.name,
+                phone: p.phone,
+                website: p.website,
+                address: p.address,
+                city: p.city,
+                stateCode: p.state_code,
+                postalCode: p.postal_code,
+                locationLink: p.location_link,
+                placeId: p.place_id,
+                googleId: p.google_id,
+              }}
+            />
 
             {p.website && (
               <a

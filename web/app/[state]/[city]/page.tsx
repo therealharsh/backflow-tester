@@ -224,12 +224,24 @@ export default async function CityPage({ params, searchParams }: Props) {
   if (!cityInfo) notFound()
 
   // ── Build provider query ──────────────────────────────────────────────
+  // Show providers within ~50 miles of the city, same state
+  const BOX = 0.75 // ~50 miles bounding box
   let query = supabase
     .from('providers')
     .select('*', { count: 'exact' })
     .eq('state_code', stateCode)
-    .eq('city_slug', params.city)
-    .range((page - 1) * PER_PAGE, page * PER_PAGE - 1)
+
+  if (cityInfo.latitude && cityInfo.longitude) {
+    query = query
+      .gte('latitude', cityInfo.latitude - BOX)
+      .lte('latitude', cityInfo.latitude + BOX)
+      .gte('longitude', cityInfo.longitude - BOX)
+      .lte('longitude', cityInfo.longitude + BOX)
+  } else {
+    query = query.eq('city_slug', params.city)
+  }
+
+  query = query.range((page - 1) * PER_PAGE, page * PER_PAGE - 1)
 
   // Sort order
   if (sort === 'rating') {
