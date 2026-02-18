@@ -1,11 +1,17 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { createServerClient, PER_PAGE } from '@/lib/supabase'
 import ProviderCard from '@/components/ProviderCard'
 import Filters from '@/components/Filters'
 import Pagination from '@/components/Pagination'
+import FAQAccordion from '@/components/FAQAccordion'
 import type { Provider, City } from '@/types'
+import {
+  generateFAQSchema,
+  generateItemListSchema,
+  type FAQItem,
+} from '@/lib/schema'
 
 interface Props {
   params: { state: string; city: string }
@@ -26,14 +32,106 @@ const STATE_NAMES: Record<string, string> = {
   DC: 'Washington D.C.',
 }
 
+/** Service filter definitions — key maps to URL param, tags to Supabase contains. */
+const SERVICE_FILTERS: Record<string, string[]> = {
+  svc_rpz:     ['RPZ Testing'],
+  svc_install: ['Installation'],
+  svc_repair:  ['Repair'],
+  svc_cc:      ['Cross-Connection Control'],
+}
+
 function sp(v: string | string[] | undefined): string {
   return typeof v === 'string' ? v : (Array.isArray(v) ? v[0] : '') ?? ''
 }
 
+// ── SEO content helpers ──────────────────────────────────────────────────
+
+function buildLocationIntro(city: string, state: string, count: number): string {
+  return (
+    `Finding a reliable backflow testing professional in ${city}, ${state} is essential ` +
+    `for maintaining a safe water supply and staying in compliance with local regulations. ` +
+    `Our directory lists ${count > 0 ? count.toLocaleString() : ''} verified backflow testing ` +
+    `companies serving the ${city} area, each reviewed by real customers on Google Maps.\n\n` +
+    `Whether you need annual backflow testing, RPZ (Reduced Pressure Zone) valve inspection, ` +
+    `or cross-connection control services, the providers listed below offer professional ` +
+    `certification and testing for both residential and commercial properties throughout ` +
+    `${city} and surrounding areas in ${state}.\n\n` +
+    `Backflow prevention devices must be tested regularly to ensure they are functioning ` +
+    `correctly and protecting your potable water supply from contamination. Most water ` +
+    `authorities in ${state} require annual testing and reporting for all backflow ` +
+    `prevention assemblies. A certified backflow tester will inspect your devices, ` +
+    `perform the required differential pressure tests, and file compliance reports ` +
+    `with your local water authority.\n\n` +
+    `Browse the listings below to compare ratings, read verified customer reviews, and ` +
+    `contact certified backflow testing professionals in ${city}, ${state} directly. ` +
+    `Use the filters above to narrow results by rating, review count, or specific ` +
+    `services like RPZ testing and preventer installation.`
+  )
+}
+
+function buildFAQs(city: string, state: string): FAQItem[] {
+  return [
+    {
+      question: `How much does backflow testing cost in ${city}?`,
+      answer:
+        `Backflow testing in ${city}, ${state} typically costs between $50 and $200 per device, ` +
+        `depending on the type of backflow preventer and the complexity of the installation. ` +
+        `RPZ (Reduced Pressure Zone) assemblies generally cost more to test than double check ` +
+        `valve assemblies. Contact providers listed above for current pricing in the ${city} area.`,
+    },
+    {
+      question: `How often is backflow testing required in ${state}?`,
+      answer:
+        `Many municipalities in ${state} require annual backflow testing for commercial and ` +
+        `residential properties with backflow prevention devices. Your local water authority ` +
+        `in ${city} can confirm the exact testing schedule and deadlines for your area. ` +
+        `Failing to test on time may result in fines or water service interruption.`,
+    },
+    {
+      question: `What is RPZ testing?`,
+      answer:
+        `RPZ (Reduced Pressure Zone) testing verifies that your reduced pressure backflow ` +
+        `preventer is functioning correctly to protect your water supply from contamination. ` +
+        `A certified tester uses specialized gauges to measure differential pressures across ` +
+        `the assembly. RPZ devices are typically required for high-hazard connections where ` +
+        `contaminants could pose a health risk.`,
+    },
+    {
+      question: `Do backflow testers in ${city} file reports with the city?`,
+      answer:
+        `Many certified backflow testers in ${city} will file test reports directly with your ` +
+        `local water authority or municipality on your behalf. It's a good idea to confirm this ` +
+        `with your provider before scheduling. Some jurisdictions require the property owner to ` +
+        `submit reports, while others accept direct submissions from the tester.`,
+    },
+    {
+      question: `What is cross-connection control?`,
+      answer:
+        `Cross-connection control prevents contaminated water from flowing backwards into the ` +
+        `clean water supply. Backflow prevention devices are installed at cross-connection ` +
+        `points to protect public health. Regular testing ensures these devices function ` +
+        `properly. Many municipalities in ${state} require cross-connection control programs ` +
+        `for commercial properties and irrigation systems.`,
+    },
+  ]
+}
+
+// ── Metadata ─────────────────────────────────────────────────────────────
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const supabase   = createServerClient()
-  const stateCode  = params.state.toUpperCase()
-  const stateName  = STATE_NAMES[stateCode] ?? stateCode
+  const stateCode = params.state.toUpperCase()
+  const stateName = STATE_NAMES[stateCode] ?? stateCode
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://findbackflowtesters.com'
+
+  if (/^\d{5}$/.test(params.city)) {
+    return {
+      title: `Backflow Testers Near ZIP ${params.city} | Find Certified Testers Near You`,
+      description: `Find certified backflow testers near ZIP code ${params.city}, ${stateName}. Compare ratings, services, and contact licensed professionals near you.`,
+      robots: { index: false },
+    }
+  }
+
+  const supabase = createServerClient()
   const { data: city } = await supabase
     .from('cities')
     .select('city, provider_count')
@@ -43,12 +141,17 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   const cityName = city?.city ?? params.city
   return {
-    title: `Backflow Testing in ${cityName}, ${stateCode}`,
+    title: `Backflow Testers in ${cityName}, ${stateName} | Find Certified Testers Near You`,
     description:
-      `Find ${city?.provider_count ?? ''} certified backflow testing professionals ` +
-      `in ${cityName}, ${stateName}. Compare ratings, verify credentials, and contact local experts.`,
+      `Find certified backflow testers in ${cityName}, ${stateName}. Compare ratings, services, and contact licensed professionals near you for RPZ inspection and annual backflow testing.`,
     alternates: {
-      canonical: `/${params.state}/${params.city}`,
+      canonical: `${siteUrl}/${params.state}/${params.city}`,
+    },
+    openGraph: {
+      title: `Backflow Testers in ${cityName}, ${stateName}`,
+      description: `Find ${city?.provider_count ?? ''} certified backflow testing professionals in ${cityName}, ${stateName}.`,
+      url: `${siteUrl}/${params.state}/${params.city}`,
+      type: 'website',
     },
   }
 }
@@ -62,19 +165,55 @@ export async function generateStaticParams() {
   }))
 }
 
+// ── Page component ───────────────────────────────────────────────────────
+
 export default async function CityPage({ params, searchParams }: Props) {
   const stateCode  = params.state.toUpperCase()
   const stateName  = STATE_NAMES[stateCode] ?? stateCode
   const supabase   = createServerClient()
 
-  // Parse filters from URL
+  // ── ZIP code in URL → redirect to the matching city page ──────────────
+  if (/^\d{5}$/.test(params.city)) {
+    const { data: zipMatch } = await supabase
+      .from('providers')
+      .select('city_slug')
+      .or(`postal_code.eq.${params.city},postal_code.eq.${params.city}.0`)
+      .eq('state_code', stateCode)
+      .not('city_slug', 'is', null)
+      .limit(1)
+
+    if (zipMatch && zipMatch.length > 0 && zipMatch[0].city_slug) {
+      redirect(`/${params.state}/${zipMatch[0].city_slug}`)
+    }
+
+    const { data: anyZip } = await supabase
+      .from('providers')
+      .select('city_slug, state_code')
+      .or(`postal_code.eq.${params.city},postal_code.eq.${params.city}.0`)
+      .not('city_slug', 'is', null)
+      .limit(1)
+
+    if (anyZip && anyZip.length > 0 && anyZip[0].city_slug) {
+      redirect(`/${anyZip[0].state_code.toLowerCase()}/${anyZip[0].city_slug}`)
+    }
+
+    notFound()
+  }
+
+  // ── Parse filters from URL ────────────────────────────────────────────
   const minRating  = sp(searchParams.min_rating)
   const minReviews = sp(searchParams.min_reviews)
   const testing    = sp(searchParams.testing) === '1'
-  const sort       = sp(searchParams.sort)  // 'rating' | 'score' | '' (default: most reviewed)
+  const sort       = sp(searchParams.sort)
   const page       = Math.max(1, parseInt(sp(searchParams.page) || '1', 10))
 
-  // Fetch city info
+  // Service filter params
+  const activeServices: string[] = []
+  for (const key of Object.keys(SERVICE_FILTERS)) {
+    if (sp(searchParams[key]) === '1') activeServices.push(key)
+  }
+
+  // ── Fetch city info ───────────────────────────────────────────────────
   const { data: cityInfo } = await supabase
     .from('cities')
     .select('*')
@@ -84,7 +223,7 @@ export default async function CityPage({ params, searchParams }: Props) {
 
   if (!cityInfo) notFound()
 
-  // Build query
+  // ── Build provider query ──────────────────────────────────────────────
   let query = supabase
     .from('providers')
     .select('*', { count: 'exact' })
@@ -92,13 +231,12 @@ export default async function CityPage({ params, searchParams }: Props) {
     .eq('city_slug', params.city)
     .range((page - 1) * PER_PAGE, page * PER_PAGE - 1)
 
-  // Apply sort order
+  // Sort order
   if (sort === 'rating') {
     query = query.order('rating', { ascending: false }).order('reviews', { ascending: false })
   } else if (sort === 'score') {
     query = query.order('backflow_score', { ascending: false }).order('reviews', { ascending: false })
   } else {
-    // default: most reviewed
     query = query.order('reviews', { ascending: false }).order('rating', { ascending: false })
   }
 
@@ -106,36 +244,65 @@ export default async function CityPage({ params, searchParams }: Props) {
   if (minReviews) query = query.gte('reviews', parseInt(minReviews, 10))
   if (testing)    query = query.eq('tier', 'testing')
 
+  // Apply service tag filters
+  for (const key of activeServices) {
+    const tags = SERVICE_FILTERS[key]
+    if (tags) query = query.contains('service_tags', tags)
+  }
+
   const { data: providers, count } = await query
   const total   = count ?? 0
   const hasMore = page * PER_PAGE < total
 
-  // Nearby cities (same state, exclude current)
+  // ── Nearby cities ─────────────────────────────────────────────────────
   const { data: nearbyCities } = await supabase
     .from('cities')
     .select('city, city_slug, provider_count')
     .eq('state_code', stateCode)
     .neq('city_slug', params.city)
     .order('provider_count', { ascending: false })
-    .limit(10)
+    .limit(8)
 
   const cityName = cityInfo.city
 
-  // JSON-LD for the city page (Service listing)
-  const jsonLd = {
+  // ── Structured data ───────────────────────────────────────────────────
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://findbackflowtesters.com'
+  const pageUrl = `${siteUrl}/${params.state}/${params.city}`
+
+  const webPageSchema = {
     '@context': 'https://schema.org',
     '@type': 'WebPage',
-    name: `Backflow Testing in ${cityName}, ${stateCode}`,
-    description: `Directory of certified backflow testing professionals in ${cityName}, ${stateName}.`,
-    url: `${process.env.NEXT_PUBLIC_SITE_URL ?? ''}/${params.state}/${params.city}`,
+    name: `Backflow Testing Services in ${cityName}, ${stateName}`,
+    description: `Find certified backflow testers in ${cityName}, ${stateName}. Compare ratings, services, and contact licensed professionals near you for RPZ inspection and annual backflow testing.`,
+    url: pageUrl,
   }
+
+  const faqItems = buildFAQs(cityName, stateName)
+  const faqSchema = generateFAQSchema(faqItems)
+
+  const itemListSchema = providers && providers.length > 0
+    ? generateItemListSchema(providers, pageUrl, cityName, stateName)
+    : null
+
+  const locationIntro = buildLocationIntro(cityName, stateName, cityInfo.provider_count)
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* JSON-LD structured data */}
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(webPageSchema) }}
       />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+      />
+      {itemListSchema && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListSchema) }}
+        />
+      )}
 
       {/* Breadcrumb */}
       <nav className="text-sm text-gray-500 mb-5">
@@ -147,10 +314,24 @@ export default async function CityPage({ params, searchParams }: Props) {
       </nav>
 
       {/* Header */}
-      <h1 className="text-3xl font-bold text-gray-900 mb-1">
-        Backflow Testing in {cityName}, {stateCode}
+      <h1 className="text-3xl font-bold text-gray-900 mb-3">
+        Backflow Testing Services in {cityName}, {stateName}
       </h1>
-      <p className="text-gray-500 mb-6">
+
+      {/* SEO location intro */}
+      <div className="text-sm text-gray-600 leading-relaxed max-w-3xl mb-2 space-y-2">
+        {locationIntro.split('\n\n').map((paragraph, i) => (
+          <p key={i}>{paragraph}</p>
+        ))}
+      </div>
+
+      {/* Data source note */}
+      <p className="text-xs text-gray-400 mb-6">
+        Data source: Google Maps. Always verify licensing with your local water authority.
+      </p>
+
+      {/* Provider count */}
+      <p className="text-gray-500 mb-4">
         {total.toLocaleString()} verified provider{total !== 1 ? 's' : ''}
       </p>
 
@@ -160,6 +341,7 @@ export default async function CityPage({ params, searchParams }: Props) {
         minReviews={minReviews}
         testing={testing}
         sort={sort}
+        activeServices={activeServices}
       />
 
       {/* Provider grid */}
@@ -183,11 +365,19 @@ export default async function CityPage({ params, searchParams }: Props) {
         </div>
       )}
 
+      {/* FAQ section */}
+      <div className="mt-14">
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">
+          Frequently Asked Questions About Backflow Testing in {cityName}
+        </h2>
+        <FAQAccordion items={faqItems} />
+      </div>
+
       {/* Nearby cities */}
       {nearbyCities && nearbyCities.length > 0 && (
         <div className="mt-12">
           <h2 className="text-lg font-semibold text-gray-800 mb-4">
-            Other Cities in {stateName}
+            Nearby Cities in {stateName}
           </h2>
           <div className="flex flex-wrap gap-2">
             {nearbyCities.map((c) => (
@@ -200,21 +390,22 @@ export default async function CityPage({ params, searchParams }: Props) {
               </Link>
             ))}
           </div>
+          <div className="flex flex-wrap gap-4 mt-4 text-sm">
+            <Link
+              href={`/${params.state}`}
+              className="text-blue-600 hover:text-blue-800 font-medium transition-colors"
+            >
+              View all cities in {stateName} &rarr;
+            </Link>
+            <Link
+              href="/#states"
+              className="text-blue-600 hover:text-blue-800 font-medium transition-colors"
+            >
+              Browse all states &rarr;
+            </Link>
+          </div>
         </div>
       )}
-
-      {/* SEO text */}
-      <div className="mt-12 text-gray-600 text-sm max-w-3xl">
-        <h2 className="text-xl font-semibold text-gray-800 mb-2">
-          About Backflow Testing in {cityName}
-        </h2>
-        <p>
-          Backflow prevention assemblies in {cityName}, {stateName} must be tested annually
-          by a certified tester to ensure your water supply stays safe from contamination.
-          All providers listed here have been verified for backflow testing services.
-          Contact them directly to schedule your annual inspection or RPZ valve test.
-        </p>
-      </div>
     </div>
   )
 }

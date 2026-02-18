@@ -32,24 +32,43 @@ export async function GET(req: NextRequest) {
 
   const results: Suggestion[] = []
 
-  // ZIP code: 5 digits — suggest search
-  if (/^\d{1,5}$/.test(q)) {
-    if (q.length === 5) {
-      results.push({
-        type: 'zip',
-        label: q,
-        sublabel: 'Search by ZIP code',
-        href: `/search?query=${q}`,
-      })
-    }
-    return NextResponse.json(results)
-  }
-
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     { auth: { persistSession: false } },
   )
+
+  // ZIP code: 5 digits — try to resolve to a city route
+  if (/^\d{1,5}$/.test(q)) {
+    if (q.length === 5) {
+      const { data: zipCity } = await supabase
+        .from('providers')
+        .select('city, city_slug, state_code')
+        .or(`postal_code.eq.${q},postal_code.eq.${q}.0`)
+        .not('city_slug', 'is', null)
+        .limit(1)
+
+      if (zipCity && zipCity.length > 0 && zipCity[0].city_slug) {
+        const stateName = STATE_NAMES[zipCity[0].state_code] ?? zipCity[0].state_code
+        results.push({
+          type: 'zip',
+          label: `${zipCity[0].city}, ${zipCity[0].state_code}`,
+          sublabel: `ZIP ${q} · ${stateName}`,
+          href: `/${zipCity[0].state_code.toLowerCase()}/${zipCity[0].city_slug}`,
+        })
+      } else {
+        results.push({
+          type: 'zip',
+          label: q,
+          sublabel: 'Search by ZIP code',
+          href: `/search?query=${q}`,
+        })
+      }
+    }
+    return NextResponse.json(results, {
+      headers: { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600' },
+    })
+  }
 
   // State match: 2-letter code
   if (/^[a-zA-Z]{1,2}$/.test(q)) {
@@ -67,10 +86,13 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Full state name match
+  // Full state name match (supports word-level prefix: "jersey" → "New Jersey")
   const stateLower = q.toLowerCase()
   for (const [code, name] of Object.entries(STATE_NAMES)) {
-    if (name.toLowerCase().startsWith(stateLower) && !results.some((r) => r.href === `/${code.toLowerCase()}`)) {
+    const nameLower = name.toLowerCase()
+    const matchesStart = nameLower.startsWith(stateLower)
+    const matchesWord = nameLower.split(' ').some((w) => w.startsWith(stateLower))
+    if ((matchesStart || matchesWord) && !results.some((r) => r.href === `/${code.toLowerCase()}`)) {
       results.push({
         type: 'state',
         label: name,
@@ -93,7 +115,7 @@ export async function GET(req: NextRequest) {
   const cityQuery = supabase
     .from('cities')
     .select('city, city_slug, state_code, provider_count')
-    .ilike('city', `${cityQ}%`)
+    .ilike('city', `%${cityQ}%`)
     .order('provider_count', { ascending: false })
     .limit(stateFilter ? 5 : 8)
 

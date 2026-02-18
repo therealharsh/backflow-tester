@@ -30,16 +30,52 @@ export function parseImageUrls(image_urls: unknown): string[] {
   return []
 }
 
+/** Patterns that suggest a quality on-site / professional photo. */
+const PREFERRED_PATTERNS = [
+  'backflow', 'technician', 'team', 'vehicle', 'van', 'truck',
+  'exterior', 'building', 'storefront', 'crew', 'plumber',
+  'service', 'photo', 'AF1Q',
+]
+
+/** Patterns that suggest a product shot, diagram, or irrelevant image. */
+const PENALIZED_PATTERNS = [
+  'product', 'faucet', 'valve', 'part', 'diagram',
+  'coupon', 'deal', 'promo', 'flyer', 'menu',
+]
+
+function scoreImage(url: string, index: number): number {
+  const lower = url.toLowerCase()
+  let score = 0
+  for (const p of PREFERRED_PATTERNS) if (lower.includes(p)) score += 1
+  for (const p of PENALIZED_PATTERNS) if (lower.includes(p)) score -= 2
+  // Prefer images appearing earlier (Google primary photos come first)
+  score -= index * 0.1
+  // Prefer larger Google image sizes (=w400 or higher)
+  const sizeMatch = lower.match(/=w(\d+)/)
+  if (sizeMatch && parseInt(sizeMatch[1]) >= 400) score += 1
+  return score
+}
+
 /**
  * Choose the best displayable image URL for a provider.
+ * Scores images by relevance, preferring on-site/professional photos.
  * Returns null if nothing usable is found.
  */
 export function chooseBestImage(image_urls: unknown): string | null {
-  const urls = parseImageUrls(image_urls)
-  for (const url of urls) {
-    if (!isJunkImageUrl(url)) return url
+  const urls = parseImageUrls(image_urls).filter((u) => !isJunkImageUrl(u))
+  if (urls.length === 0) return null
+  if (urls.length === 1) return urls[0]
+
+  let bestUrl = urls[0]
+  let bestScore = scoreImage(urls[0], 0)
+  for (let i = 1; i < urls.length; i++) {
+    const s = scoreImage(urls[i], i)
+    if (s > bestScore) {
+      bestScore = s
+      bestUrl = urls[i]
+    }
   }
-  return null
+  return bestUrl
 }
 
 /** Generate initials from a business name (up to 2 words). */

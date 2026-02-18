@@ -25,11 +25,21 @@ const STATE_NAMES: Record<string, string> = {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const stateCode = params.state.toUpperCase()
   const stateName = STATE_NAMES[stateCode] ?? stateCode
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://findbackflowtesters.com'
+
   return {
-    title: `Backflow Testing in ${stateName}`,
+    title: `Backflow Testers in ${stateName} | Find Certified Testers Near You`,
     description:
-      `Find certified backflow testing professionals in ${stateName}. ` +
-      `Browse cities with verified RPZ testers and cross-connection inspectors.`,
+      `Find certified backflow testers in ${stateName}. Compare ratings, services, and contact licensed professionals near you for RPZ inspection and annual backflow testing.`,
+    alternates: {
+      canonical: `${siteUrl}/${params.state}`,
+    },
+    openGraph: {
+      title: `Backflow Testers in ${stateName}`,
+      description: `Browse certified backflow testing professionals across ${stateName}.`,
+      url: `${siteUrl}/${params.state}`,
+      type: 'website',
+    },
   }
 }
 
@@ -66,7 +76,7 @@ export default async function StatePage({ params }: Props) {
 
       {/* Header */}
       <h1 className="text-3xl font-bold text-gray-900 mb-2">
-        Backflow Testing in {stateName}
+        Backflow Testing Services in {stateName}
       </h1>
       <p className="text-gray-600 mb-8">
         {totalProviders.toLocaleString()} verified providers across {cities.length} cities
