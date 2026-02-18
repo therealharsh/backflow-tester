@@ -1,5 +1,6 @@
 import type { MetadataRoute } from 'next'
 import { createServerClient } from '@/lib/supabase'
+import { getAllPostSlugs } from '@/lib/wordpress'
 
 const BASE = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://findbackflowtesters.com'
 
@@ -9,6 +10,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   // Homepage
   urls.push({ url: BASE, changeFrequency: 'weekly', priority: 1.0 })
+
+  // Blog listing
+  urls.push({ url: `${BASE}/blog`, changeFrequency: 'daily', priority: 0.8 })
+
+  // Blog posts
+  const blogSlugs = await getAllPostSlugs()
+  for (const slug of blogSlugs) {
+    urls.push({
+      url: `${BASE}/blog/${slug}`,
+      changeFrequency: 'weekly',
+      priority: 0.7,
+    })
+  }
 
   // Cities (includes state info)
   const { data: cities } = await supabase

@@ -41,6 +41,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Link href="/" className="px-3 py-2 text-gray-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors hidden sm:block">
                 Home
               </Link>
+              <Link href="/blog" className="px-3 py-2 text-gray-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors">
+                Blog
+              </Link>
               <Link href="/#states" className="px-3 py-2 text-gray-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors">
                 Browse States
               </Link>
@@ -67,6 +70,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <ul className="space-y-2 text-sm">
                   <li><Link href="/" className="hover:text-white transition-colors">Home</Link></li>
                   <li><Link href="/#states" className="hover:text-white transition-colors">Browse by State</Link></li>
+                  <li><Link href="/blog" className="hover:text-white transition-colors">Blog</Link></li>
                 </ul>
               </div>
               <div>
