@@ -119,7 +119,17 @@ export default function Filters({ minRating, minReviews, testing, sort, activeSe
         {/* Clear */}
         {hasFilters && (
           <button
-            onClick={() => router.push(pathname)}
+            onClick={() => {
+              const params = new URLSearchParams(window.location.search)
+              params.delete('sort')
+              params.delete('min_rating')
+              params.delete('min_reviews')
+              params.delete('testing')
+              params.delete('page')
+              for (const c of SERVICE_CHIPS) params.delete(c.key)
+              const qs = params.toString()
+              router.push(qs ? `${pathname}?${qs}` : pathname)
+            }}
             className="text-sm text-gray-400 hover:text-gray-600 underline ml-auto"
           >
             Clear filters

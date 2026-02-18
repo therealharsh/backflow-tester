@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import Link from 'next/link'
+import NavGetQuote from '@/components/NavGetQuote'
 
 export const metadata: Metadata = {
   title: {
@@ -14,6 +15,7 @@ export const metadata: Metadata = {
     process.env.NEXT_PUBLIC_SITE_URL ?? 'https://findbackflowtesters.com'
   ),
   openGraph: { siteName: 'FindBackflowTesters.com', type: 'website' },
+  icons: { icon: '/favicon.svg' },
 }
 
 // Inline SVG drop icon (avoids lucide-react SSR edge-case)
@@ -47,6 +49,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Link href="/#states" className="px-3 py-2 text-gray-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors">
                 Browse States
               </Link>
+              <NavGetQuote />
             </nav>
           </div>
         </header>
