@@ -90,33 +90,8 @@ export default async function SearchPage({ searchParams }: Props) {
     }
   }
 
-  // 3. ZIP code → find matching city via providers table, then geocode fallback
-  if (isZipQuery) {
-    const { data: zipMatch } = await supabase
-      .from('providers')
-      .select('city_slug, state_code')
-      .or(`postal_code.eq.${query},postal_code.eq.${query}.0`)
-      .not('city_slug', 'is', null)
-      .limit(1)
-
-    if (zipMatch && zipMatch.length > 0 && zipMatch[0].city_slug) {
-      redirect(`/${zipMatch[0].state_code.toLowerCase()}/${zipMatch[0].city_slug}`)
-    }
-
-    // Geocode fallback: resolve ZIP to coordinates, find nearest provider's city
-    const geo = await geocode(query)
-    if (geo) {
-      const { data: nearProviders } = await supabase.rpc('providers_near_point', {
-        lat: geo.lat,
-        lon: geo.lon,
-        radius_miles: 25,
-        max_results: 1,
-      })
-      if (nearProviders?.[0]?.city_slug && nearProviders[0]?.state_code) {
-        redirect(`/${nearProviders[0].state_code.toLowerCase()}/${nearProviders[0].city_slug}`)
-      }
-    }
-  }
+  // 3. ZIP codes → skip redirect, always fall through to proximity search
+  //    so the user sees ALL nearby providers across city/state boundaries.
 
   // 4. "City, ST" format → redirect to /[state]/[city]
   const csvMatch = query.match(/^(.+?)[,\s]+([a-zA-Z]{2})$/)
@@ -225,9 +200,34 @@ export default async function SearchPage({ searchParams }: Props) {
     errorMsg = `No providers found near "${query}".`
   }
 
-  const proximityNote = searchMode === 'proximity' && geocodedLabel
-    ? `Showing providers within 50 miles of ${geocodedLabel.split(',').slice(0, 2).join(',')}`
-    : null
+  // Build a friendly location label from the geocoded display name
+  // e.g. "07302, Jersey City, Hudson County, New Jersey, US" → "Jersey City, NJ"
+  let locationLabel = ''
+  if (geocodedLabel) {
+    const parts = geocodedLabel.split(',').map((s) => s.trim())
+    // Find city (first non-ZIP part) and state
+    const cityPart = parts.find((p) => !/^\d{5}/.test(p) && p !== 'United States' && p !== 'US')
+    const statePart = parts.find((p) => {
+      const stateCode = Object.entries(STATE_NAMES).find(
+        ([, name]) => name.toLowerCase() === p.toLowerCase()
+      )
+      return !!stateCode
+    })
+    if (cityPart && statePart) {
+      const stateCode = Object.entries(STATE_NAMES).find(
+        ([, name]) => name.toLowerCase() === statePart.toLowerCase()
+      )?.[0]
+      locationLabel = `${cityPart}, ${stateCode ?? statePart}`
+    } else if (cityPart) {
+      locationLabel = cityPart
+    }
+  }
+
+  const heading = locationLabel
+    ? `Backflow Testers near ${locationLabel}`
+    : query
+      ? `Results for "${query}"`
+      : 'Search Backflow Testers'
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -238,17 +238,10 @@ export default async function SearchPage({ searchParams }: Props) {
           <span className="mx-1.5">/</span>
           <span className="text-gray-900">Search</span>
         </nav>
-        <h1 className="text-2xl font-bold text-gray-900">
-          {query ? `Results for "${query}"` : 'Search Backflow Testers'}
-        </h1>
+        <h1 className="text-2xl font-bold text-gray-900">{heading}</h1>
         {providers.length > 0 && (
           <p className="text-gray-500 mt-1">
             {providers.length} provider{providers.length !== 1 ? 's' : ''} found
-            {proximityNote && (
-              <span className="ml-2 text-xs text-blue-600 font-medium">
-                — {proximityNote}
-              </span>
-            )}
           </p>
         )}
       </div>

@@ -63,3 +63,19 @@ export interface Filters {
   testing: string
   page: string
 }
+
+export interface BlogPost {
+  id: string
+  slug: string
+  title: string
+  excerpt: string | null
+  content: string
+  cover_image_url: string | null
+  tags: string[]
+  status: 'draft' | 'published'
+  published_at: string | null
+  seo_title: string | null
+  seo_description: string | null
+  created_at: string
+  updated_at: string
+}
