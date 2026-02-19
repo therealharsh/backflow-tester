@@ -2,6 +2,9 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { createServerClient, PER_PAGE } from '@/lib/supabase'
+import { STATE_NAMES } from '@/lib/geo-utils'
+import { geocodeCity } from '@/lib/google-places'
+import EmptyResultsState from '@/components/EmptyResultsState'
 import ProviderCard from '@/components/ProviderCard'
 import Filters from '@/components/Filters'
 import Pagination from '@/components/Pagination'
@@ -16,20 +19,6 @@ import {
 interface Props {
   params: { state: string; city: string }
   searchParams: { [key: string]: string | string[] | undefined }
-}
-
-const STATE_NAMES: Record<string, string> = {
-  AL: 'Alabama', AK: 'Alaska', AZ: 'Arizona', AR: 'Arkansas', CA: 'California',
-  CO: 'Colorado', CT: 'Connecticut', DE: 'Delaware', FL: 'Florida', GA: 'Georgia',
-  HI: 'Hawaii', ID: 'Idaho', IL: 'Illinois', IN: 'Indiana', IA: 'Iowa',
-  KS: 'Kansas', KY: 'Kentucky', LA: 'Louisiana', ME: 'Maine', MD: 'Maryland',
-  MA: 'Massachusetts', MI: 'Michigan', MN: 'Minnesota', MS: 'Mississippi', MO: 'Missouri',
-  MT: 'Montana', NE: 'Nebraska', NV: 'Nevada', NH: 'New Hampshire', NJ: 'New Jersey',
-  NM: 'New Mexico', NY: 'New York', NC: 'North Carolina', ND: 'North Dakota', OH: 'Ohio',
-  OK: 'Oklahoma', OR: 'Oregon', PA: 'Pennsylvania', RI: 'Rhode Island', SC: 'South Carolina',
-  SD: 'South Dakota', TN: 'Tennessee', TX: 'Texas', UT: 'Utah', VT: 'Vermont',
-  VA: 'Virginia', WA: 'Washington', WV: 'West Virginia', WI: 'Wisconsin', WY: 'Wyoming',
-  DC: 'Washington D.C.',
 }
 
 /** Service filter definitions — key maps to URL param, tags to Supabase contains. */
@@ -120,7 +109,8 @@ function buildFAQs(city: string, state: string): FAQItem[] {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const stateCode = params.state.toUpperCase()
-  const stateName = STATE_NAMES[stateCode] ?? stateCode
+  const stateName = STATE_NAMES[stateCode]
+  if (!stateName) return {}
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://findbackflowtesters.com'
 
   if (/^\d{5}$/.test(params.city)) {
@@ -139,7 +129,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     .eq('city_slug', params.city)
     .single()
 
-  const cityName = city?.city ?? params.city
+  const cityName = city?.city
+    ?? params.city.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
   return {
     title: `Backflow Testers in ${cityName}, ${stateName} | Find Certified Testers Near You`,
     description:
@@ -169,8 +160,11 @@ export async function generateStaticParams() {
 
 export default async function CityPage({ params, searchParams }: Props) {
   const stateCode  = params.state.toUpperCase()
-  const stateName  = STATE_NAMES[stateCode] ?? stateCode
+  const stateName  = STATE_NAMES[stateCode]
   const supabase   = createServerClient()
+
+  // Only 404 for truly invalid state codes
+  if (!stateName) notFound()
 
   // ── ZIP code in URL → redirect to the matching city page ──────────────
   if (/^\d{5}$/.test(params.city)) {
@@ -221,7 +215,74 @@ export default async function CityPage({ params, searchParams }: Props) {
     .eq('city_slug', params.city)
     .single()
 
-  if (!cityInfo) notFound()
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://findbackflowtesters.com'
+  const pageUrl = `${siteUrl}/${params.state}/${params.city}`
+
+  // ── Empty state: city not in DB, validate via geocoding ─────────────
+  if (!cityInfo) {
+    const geo = await geocodeCity(params.city, stateCode)
+    if (!geo) notFound()
+
+    const { data: nearbyCities } = await supabase
+      .from('cities')
+      .select('city, city_slug, provider_count')
+      .eq('state_code', stateCode)
+      .order('provider_count', { ascending: false })
+      .limit(8)
+
+    const suggestedLinks = (nearbyCities ?? []).map((c) => ({
+      label: `${c.city} (${c.provider_count})`,
+      href: `/${params.state}/${c.city_slug}`,
+    }))
+
+    const breadcrumbSchema = {
+      '@context': 'https://schema.org',
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'Home', item: siteUrl },
+        { '@type': 'ListItem', position: 2, name: stateName, item: `${siteUrl}/${params.state}` },
+        { '@type': 'ListItem', position: 3, name: geo!.city, item: pageUrl },
+      ],
+    }
+
+    const faqItems = buildFAQs(geo!.city, stateName)
+    const faqSchema = generateFAQSchema(faqItems)
+
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />
+
+        <nav className="text-sm text-gray-500 mb-6">
+          <Link href="/" className="hover:text-brand-600">Home</Link>
+          {' / '}
+          <Link href={`/${params.state}`} className="hover:text-brand-600">{stateName}</Link>
+          {' / '}
+          <span className="text-gray-900 font-medium">{geo!.city}</span>
+        </nav>
+
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">
+          Backflow Testing Services in {geo!.city}, {stateName}
+        </h1>
+
+        <EmptyResultsState
+          scope="city"
+          location={`${geo!.city}, ${stateName}`}
+          stateCode={stateCode}
+          suggestedLinks={suggestedLinks}
+        />
+
+        <div className="mt-14 max-w-3xl">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">
+            Backflow Testing FAQ for {geo!.city}, {stateName}
+          </h2>
+          <FAQAccordion items={faqItems} />
+        </div>
+      </div>
+    )
+  }
+
+  const cityName = cityInfo.city
 
   // ── Build provider query ──────────────────────────────────────────────
   // Show providers within ~50 miles of the city, same state
@@ -276,12 +337,7 @@ export default async function CityPage({ params, searchParams }: Props) {
     .order('provider_count', { ascending: false })
     .limit(8)
 
-  const cityName = cityInfo.city
-
   // ── Structured data ───────────────────────────────────────────────────
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://findbackflowtesters.com'
-  const pageUrl = `${siteUrl}/${params.state}/${params.city}`
-
   const webPageSchema = {
     '@context': 'https://schema.org',
     '@type': 'WebPage',
