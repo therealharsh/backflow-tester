@@ -14,7 +14,7 @@ export async function POST(request: Request) {
       email: string
     }
 
-    if (!providerId || !claimId || !plan || !email) {
+    if (!providerId || !claimId || !plan) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
@@ -42,6 +42,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Claim must be verified first' }, { status: 400 })
     }
 
+    // Use email from claim record, fall back to request body
+    const customerEmail = email || claim.claimant_email
+
     // Get provider name for checkout description
     const { data: provider } = await supabase
       .from('providers')
@@ -54,7 +57,7 @@ export async function POST(request: Request) {
     // Create Stripe checkout session
     const session = await getStripe().checkout.sessions.create({
       mode: 'subscription',
-      customer_email: email,
+      customer_email: customerEmail,
       line_items: [
         {
           price: getPriceId(planKey),
