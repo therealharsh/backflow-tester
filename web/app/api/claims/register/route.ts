@@ -46,6 +46,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid state code' }, { status: 400 })
     }
 
+    const hasUrl = !!process.env.NEXT_PUBLIC_SUPABASE_URL
+    const hasKey = !!process.env.SUPABASE_SERVICE_ROLE_KEY
+    if (!hasUrl || !hasKey) {
+      console.error('[register] Missing env vars', { hasUrl, hasKey })
+      return NextResponse.json(
+        { error: `Server config error: URL=${hasUrl}, KEY=${hasKey}` },
+        { status: 500 },
+      )
+    }
+
     const supabase = createServiceClient()
 
     // Generate a unique place_id and provider_slug for this new listing
