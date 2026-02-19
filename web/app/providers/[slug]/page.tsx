@@ -131,7 +131,7 @@ export default async function ProviderPage({ params }: Props) {
         longitude: p.longitude,
       },
     }),
-    ...(p.rating && {
+    ...(p.rating && p.reviews > 0 && {
       aggregateRating: {
         '@type': 'AggregateRating',
         ratingValue: p.rating.toFixed(1),

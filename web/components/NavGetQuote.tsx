@@ -8,6 +8,7 @@ export default function NavGetQuote() {
   return (
     <>
       <button
+        data-nav-quote
         onClick={() => setOpen(true)}
         className="ml-1 px-4 py-2 bg-blue-700 text-white text-sm font-semibold rounded-lg hover:bg-blue-800 transition-colors"
       >
