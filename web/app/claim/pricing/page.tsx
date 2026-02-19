@@ -75,12 +75,7 @@ function PricingInner() {
       const res = await fetch('/api/stripe/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          providerId,
-          claimId,
-          plan,
-          email: '', // Stripe will use the email from checkout
-        }),
+        body: JSON.stringify({ providerId, claimId, plan }),
       })
 
       const data = await res.json()
