@@ -363,7 +363,15 @@ export default async function HomePage() {
             backflow testing provider in your area.
           </p>
 
-          <HomepageCTA />
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <HomepageCTA />
+            <Link
+              href="#states"
+              className="text-sm text-blue-200 hover:text-white underline-offset-4 hover:underline transition-colors"
+            >
+              Browse providers instead
+            </Link>
+          </div>
 
           {/* Trust signals */}
           <div className="mt-10 flex flex-wrap justify-center gap-x-8 gap-y-3 text-sm text-blue-300">
@@ -394,69 +402,96 @@ export default async function HomePage() {
       {/* ── BACKFLOW TESTING 101 (SEO) ───────────────────────────────────── */}
       <section className="py-20 bg-gray-50 border-t border-gray-100">
         <div className="section">
-          <div className="max-w-3xl">
-            <p className="text-xs font-semibold text-blue-600 uppercase tracking-widest mb-2">Learn more</p>
-            <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-6">
-              What Is Backflow Testing and Why Is It Required?
-            </h2>
+          <div className="grid lg:grid-cols-[1fr_320px] gap-12 items-start">
+            <div>
+              <p className="text-xs font-semibold text-blue-600 uppercase tracking-widest mb-2">Learn more</p>
+              <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-6">
+                What Is Backflow Testing and Why Is It Required?
+              </h2>
 
-            <div className="space-y-4 text-gray-600 text-sm leading-relaxed">
-              <p>
-                Backflow testing is an annual backflow testing check that confirms water only flows one way through your
-                plumbing. A backflow preventer sits at cross-connection control points (like irrigation, fire lines, or
-                commercial systems) to stop contaminated water from reversing into the clean supply.
-              </p>
-              <p>
-                Many cities and water districts require a backflow prevention device inspection by a certified professional
-                to stay in city compliance. Common devices include RPZ assemblies (RPZ valve testing), double-check
-                valves (DCVA), and pressure vacuum breakers (PVB).
-              </p>
-              <p>
-                If you&apos;re looking for a certified backflow tester near me, our directory helps you compare verified
-                providers with real Google ratings, service details, and direct contact info.
-              </p>
+              <div className="space-y-4 text-gray-600 text-sm leading-relaxed">
+                <p>
+                  Backflow testing is an annual backflow testing check that confirms water only flows one way through your
+                  plumbing. A backflow preventer sits at cross-connection control points (like irrigation, fire lines, or
+                  commercial systems) to stop contaminated water from reversing into the clean supply.
+                </p>
+                <p>
+                  Many cities and water districts require a backflow prevention device inspection by a certified professional
+                  to stay in city compliance. Common devices include RPZ assemblies (RPZ valve testing), double-check
+                  valves (DCVA), and pressure vacuum breakers (PVB).
+                </p>
+                <p>
+                  If you&apos;re looking for a certified backflow tester near me, our directory helps you compare verified
+                  providers with real Google ratings, service details, and direct contact info.
+                </p>
 
-              <h3 className="text-xl font-bold text-gray-900 pt-4">
-                How Much Does Backflow Testing Cost?
-              </h3>
-              <p>
-                Backflow testing prices vary by location, device type, and whether the provider files results with your
-                water district. Typical ranges:
-              </p>
-              <ul className="list-disc list-inside space-y-1.5 text-gray-700">
-                <li><strong>Standard residential device (PVB / DCVA):</strong> $90&ndash;$200</li>
-                <li><strong>RPZ assembly:</strong> $150&ndash;$350 (often higher due to complexity)</li>
-                <li><strong>Additional devices on the same visit:</strong> +$50&ndash;$150 each (many providers discount multi-device testing)</li>
-                <li><strong>Commercial / multi-family sites:</strong> $200&ndash;$800+ total depending on device count and access</li>
-                <li><strong>Repairs after a failed test:</strong> commonly $150&ndash;$600+ (parts + labor), and a retest may be required</li>
-              </ul>
-              <p>
-                Prices are often higher in major metros and during peak compliance season. Use Get Quote to compare
-                local pricing for your address.
-              </p>
-            </div>
-
-            <div className="mt-8 flex flex-wrap gap-3">
-              <Link href="/#states" className="btn-secondary text-sm">Browse by State</Link>
-              <Link href="/blog" className="btn-ghost text-sm">Read Our Blog</Link>
-            </div>
-
-            {topStates.length > 0 && (
-              <div className="mt-8">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Top states by providers</p>
-                <div className="flex flex-wrap gap-2">
-                  {topStates.map(([code, count]) => (
-                    <Link
-                      key={code}
-                      href={`/${code.toLowerCase()}`}
-                      className="px-3 py-1.5 bg-white border border-gray-200 rounded-full text-xs text-gray-700 hover:border-blue-600 hover:text-blue-700 transition-colors"
-                    >
-                      {STATE_NAMES[code]} ({count})
-                    </Link>
-                  ))}
-                </div>
+                <h3 className="text-xl font-bold text-gray-900 pt-4">
+                  How Much Does Backflow Testing Cost?
+                </h3>
+                <p>
+                  Backflow testing prices vary by location, device type, and whether the provider files results with your
+                  water district. Typical ranges:
+                </p>
+                <ul className="list-disc list-inside space-y-1.5 text-gray-700">
+                  <li><strong>Standard residential device (PVB / DCVA):</strong> $90&ndash;$200</li>
+                  <li><strong>RPZ assembly:</strong> $150&ndash;$350 (often higher due to complexity)</li>
+                  <li><strong>Additional devices on the same visit:</strong> +$50&ndash;$150 each (many providers discount multi-device testing)</li>
+                  <li><strong>Commercial / multi-family sites:</strong> $200&ndash;$800+ total depending on device count and access</li>
+                  <li><strong>Repairs after a failed test:</strong> commonly $150&ndash;$600+ (parts + labor), and a retest may be required</li>
+                </ul>
+                <p>
+                  Prices are often higher in major metros and during peak compliance season. Use Get Quote to compare
+                  local pricing for your address.
+                </p>
               </div>
-            )}
+
+              <div className="mt-8 flex flex-wrap gap-3">
+                <Link href="/#states" className="btn-secondary text-sm">Browse by State</Link>
+                <Link href="/blog" className="btn-ghost text-sm">Read Our Blog</Link>
+              </div>
+
+              {topStates.length > 0 && (
+                <div className="mt-8">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Top states by providers</p>
+                  <div className="flex flex-wrap gap-2">
+                    {topStates.map(([code, count]) => (
+                      <Link
+                        key={code}
+                        href={`/${code.toLowerCase()}`}
+                        className="px-3 py-1.5 bg-white border border-gray-200 rounded-full text-xs text-gray-700 hover:border-blue-600 hover:text-blue-700 transition-colors"
+                      >
+                        {STATE_NAMES[code]} ({count})
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Images alongside text */}
+            <div className="flex flex-col gap-5 lg:sticky lg:top-24">
+              <Image
+                src="/backflowtesting3.jpeg"
+                alt="Technician testing a backflow prevention device"
+                width={320}
+                height={240}
+                className="rounded-xl border border-gray-200 shadow-sm w-full object-cover"
+              />
+              <Image
+                src="/backflowtesting4.jpg"
+                alt="Backflow preventer assembly installed on a water line"
+                width={320}
+                height={240}
+                className="rounded-xl border border-gray-200 shadow-sm w-full object-cover"
+              />
+              <Image
+                src="/backflowtesting5.jpg"
+                alt="Certified tester inspecting a backflow device"
+                width={320}
+                height={240}
+                className="rounded-xl border border-gray-200 shadow-sm w-full object-cover"
+              />
+            </div>
           </div>
         </div>
       </section>
@@ -534,6 +569,56 @@ export default async function HomePage() {
                 {badge}
               </span>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── PROVIDER CTA — CLAIM & UPGRADE ───────────────────────────────── */}
+      <section className="py-20 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 border-t border-gray-700">
+        <div className="section">
+          <div className="max-w-2xl mx-auto text-center">
+            <p className="text-xs font-semibold text-blue-400 uppercase tracking-widest mb-3">For Backflow Professionals</p>
+            <h2 className="text-2xl sm:text-3xl font-bold text-white mb-4">
+              Are You a Certified Backflow Tester?
+            </h2>
+            <p className="text-gray-400 leading-relaxed mb-8 max-w-lg mx-auto">
+              Claim your listing to manage your profile, respond to quote requests, and upgrade
+              to premium placement. Get more visibility and more jobs in your service area.
+            </p>
+
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Link
+                href="/claim"
+                className="inline-flex items-center justify-center gap-2 px-8 py-3.5 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                Find Your Listing
+              </Link>
+              <Link
+                href="/claim?tab=register"
+                className="inline-flex items-center justify-center gap-2 px-8 py-3.5 bg-white/10 text-white font-semibold rounded-lg border border-white/20 hover:bg-white/20 transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                </svg>
+                Register Your Listing
+              </Link>
+            </div>
+
+            <div className="mt-10 grid grid-cols-1 sm:grid-cols-3 gap-6 text-left">
+              {[
+                { title: 'Premium Placement', desc: 'Appear first in search results with a highlighted card and badge.' },
+                { title: 'More Quote Leads', desc: 'Get prioritized quote requests from customers in your area.' },
+                { title: 'Plans from $49/mo', desc: 'Starter, Pro, and Featured tiers. Cancel anytime.' },
+              ].map(({ title, desc }) => (
+                <div key={title} className="bg-white/5 border border-white/10 rounded-xl p-5">
+                  <h3 className="text-white font-semibold mb-1 text-sm">{title}</h3>
+                  <p className="text-gray-400 text-sm leading-relaxed">{desc}</p>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>

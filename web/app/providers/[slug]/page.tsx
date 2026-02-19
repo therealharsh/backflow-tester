@@ -5,6 +5,8 @@ import { createServerClient } from '@/lib/supabase'
 import { chooseBestImage, parseImageUrls, isJunkImageUrl } from '@/lib/image-utils'
 import type { Provider, ProviderService, ProviderReview } from '@/types'
 import GetQuoteButton from '@/components/GetQuoteButton'
+import ClaimListingCTA from '@/components/ClaimListingCTA'
+import PremiumBadge from '@/components/PremiumBadge'
 
 interface Props {
   params: { slug: string }
@@ -477,8 +479,15 @@ export default async function ProviderPage({ params }: Props) {
         {/* ── Sticky sidebar ── */}
         <div className="lg:sticky lg:top-24 space-y-4">
           {/* CTA card */}
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-3">
+          <div className={`rounded-2xl border shadow-sm p-5 space-y-3 ${
+            p.is_premium ? 'border-blue-300 bg-blue-50/30' : 'border-gray-200 bg-white'
+          }`}>
             <div className="mb-1">
+              {p.is_premium && p.premium_plan && (
+                <div className="mb-2">
+                  <PremiumBadge plan={p.premium_plan} rating={p.rating} reviews={p.reviews} size="md" />
+                </div>
+              )}
               <p className="font-semibold text-gray-900 text-lg leading-tight">{p.name}</p>
               <p className="text-sm text-gray-500 mt-0.5">{p.city}, {p.state_code}</p>
             </div>
@@ -553,6 +562,13 @@ export default async function ProviderPage({ params }: Props) {
               </p>
             )}
           </div>
+
+          {/* Claim CTA */}
+          <ClaimListingCTA
+            providerId={p.place_id}
+            providerName={p.name}
+            claimed={p.claimed}
+          />
 
           <p className="text-xs text-gray-400 text-center px-2">
             Always verify licensing with your local water authority before hiring.

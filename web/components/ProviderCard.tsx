@@ -2,6 +2,7 @@ import Link from 'next/link'
 import type { Provider } from '@/types'
 import { chooseBestImage, getInitials } from '@/lib/image-utils'
 import GetQuoteButton from './GetQuoteButton'
+import PremiumBadge from './PremiumBadge'
 
 interface Props {
   provider: Provider
@@ -50,8 +51,14 @@ export default function ProviderCard({ provider: p, distanceMiles }: Props) {
   highlights.push(`${p.city}, ${p.state_code}`)
   if (distanceMiles != null) highlights.push(formatDistance(distanceMiles))
 
+  const isPremium = p.is_premium && p.premium_plan
+
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden hover:shadow-lg hover:border-blue-200 transition-all duration-200 flex flex-col group">
+    <div className={`rounded-2xl border overflow-hidden hover:shadow-lg transition-all duration-200 flex flex-col group ${
+      isPremium
+        ? 'border-blue-300 bg-blue-50/30 ring-1 ring-blue-200'
+        : 'border-gray-200 bg-white hover:border-blue-200'
+    }`}>
       {/* Image */}
       <Link href={`/providers/${p.provider_slug}`} className="block overflow-hidden relative">
         {heroImage ? (
@@ -67,15 +74,19 @@ export default function ProviderCard({ provider: p, distanceMiles }: Props) {
           <PlaceholderImage name={p.name} />
         )}
 
-        {/* Verified badge — top left */}
-        {p.tier === 'testing' && (
+        {/* Premium badge — top left (takes priority over verified badge) */}
+        {isPremium ? (
+          <span className="absolute top-2.5 left-2.5">
+            <PremiumBadge plan={p.premium_plan} rating={p.rating} reviews={p.reviews} />
+          </span>
+        ) : p.tier === 'testing' ? (
           <span className="absolute top-2.5 left-2.5 inline-flex items-center gap-1 text-[11px] font-bold text-white bg-emerald-600/90 backdrop-blur-sm rounded-full px-2.5 py-1 shadow">
             <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
             </svg>
             Testing Verified
           </span>
-        )}
+        ) : null}
 
         {/* Distance badge — top right */}
         {distanceMiles != null && (

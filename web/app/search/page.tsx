@@ -318,6 +318,7 @@ export default async function SearchPage({ searchParams }: Props) {
             .from('providers')
             .select('*')
             .or(`postal_code.eq.${query},postal_code.eq.${query}.0`)
+            .order('premium_rank', { ascending: false })
             .order('reviews', { ascending: false })
             .limit(24)
           providers = data ?? []
@@ -327,6 +328,7 @@ export default async function SearchPage({ searchParams }: Props) {
             .from('providers')
             .select('*')
             .or(`city.ilike.%${query}%,name.ilike.%${query}%`)
+            .order('premium_rank', { ascending: false })
             .order('reviews', { ascending: false })
             .limit(24)
           providers = data ?? []
@@ -339,6 +341,7 @@ export default async function SearchPage({ searchParams }: Props) {
         .from('providers')
         .select('*')
         .or(`city.ilike.%${query}%,name.ilike.%${query}%`)
+        .order('premium_rank', { ascending: false })
         .order('reviews', { ascending: false })
         .limit(24)
       providers = data ?? []
@@ -363,11 +366,14 @@ export default async function SearchPage({ searchParams }: Props) {
     if (tags) filtered = filtered.filter((p) => tags.every((t) => (p.service_tags ?? []).includes(t)))
   }
 
-  // Apply sort (proximity results already sorted by distance by default)
+  // Apply sort — premium listings always first, then user-chosen sort
   if (sort === 'rating') {
-    filtered.sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0) || b.reviews - a.reviews)
+    filtered.sort((a, b) => (b.premium_rank ?? 0) - (a.premium_rank ?? 0) || (b.rating ?? 0) - (a.rating ?? 0) || b.reviews - a.reviews)
   } else if (sort === 'score') {
-    filtered.sort((a, b) => (b.backflow_score ?? 0) - (a.backflow_score ?? 0) || b.reviews - a.reviews)
+    filtered.sort((a, b) => (b.premium_rank ?? 0) - (a.premium_rank ?? 0) || (b.backflow_score ?? 0) - (a.backflow_score ?? 0) || b.reviews - a.reviews)
+  } else {
+    // Default: premium first, then keep existing order (distance for proximity, reviews for text)
+    filtered.sort((a, b) => (b.premium_rank ?? 0) - (a.premium_rank ?? 0))
   }
 
   // ── Nearby cities ─────────────────────────────────────────────────────
