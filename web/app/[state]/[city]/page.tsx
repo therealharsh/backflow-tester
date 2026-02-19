@@ -243,7 +243,8 @@ export default async function CityPage({ params, searchParams }: Props) {
 
   query = query.range((page - 1) * PER_PAGE, page * PER_PAGE - 1)
 
-  // Sort order
+  // Sort order — premium listings always first
+  query = query.order('premium_rank', { ascending: false })
   if (sort === 'rating') {
     query = query.order('rating', { ascending: false }).order('reviews', { ascending: false })
   } else if (sort === 'score') {

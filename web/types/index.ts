@@ -27,6 +27,13 @@ export interface Provider {
   image_urls: string[]
   provider_slug: string
   created_at: string
+  // Premium / claim fields
+  is_premium: boolean
+  premium_plan: 'starter' | 'pro' | 'featured' | null
+  premium_rank: number
+  claimed: boolean
+  claim_status: 'pending' | 'verified' | 'approved' | 'rejected' | null
+  claim_email: string | null
 }
 
 export interface ProviderService {
