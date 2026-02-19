@@ -38,7 +38,7 @@ function SuccessInner() {
 
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-8 text-sm text-blue-800">
           <p className="font-medium mb-1">What happens next?</p>
-          <ul className="text-left space-y-1 text-blue-700">
+          <ul className="space-y-1 text-blue-700">
             <li>Your listing is immediately upgraded</li>
             <li>Premium placement in all search results</li>
             <li>Quote leads will be prioritized for you</li>

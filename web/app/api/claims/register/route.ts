@@ -75,6 +75,27 @@ export async function POST(request: Request) {
       providerSlug = `${baseSlug}-${crypto.randomBytes(3).toString('hex')}`
     }
 
+    // Geocode the location to get lat/lng for proximity search
+    let latitude: number | null = null
+    let longitude: number | null = null
+    const geoKey = process.env.GOOGLE_PLACES_API_KEY
+    if (geoKey) {
+      try {
+        const geoAddress = address?.trim()
+          ? `${address.trim()}, ${city.trim()}, ${stateCode} ${postalCode?.trim() || ''}`
+          : `${city.trim()}, ${stateCode}`
+        const geoUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(geoAddress)}&key=${geoKey}`
+        const geoRes = await fetch(geoUrl, { cache: 'no-store' })
+        const geoData = await geoRes.json()
+        if (geoData.results?.[0]?.geometry?.location) {
+          latitude = geoData.results[0].geometry.location.lat
+          longitude = geoData.results[0].geometry.location.lng
+        }
+      } catch (geoErr) {
+        console.error('[register] Geocoding failed (non-fatal):', geoErr)
+      }
+    }
+
     // Create the provider record
     const { error: providerError } = await supabase.from('providers').insert({
       place_id: placeId,
@@ -86,6 +107,8 @@ export async function POST(request: Request) {
       city_slug: citySlug,
       state_code: stateCode,
       postal_code: postalCode?.trim() || null,
+      latitude,
+      longitude,
       tier: null,
       backflow_score: 0,
       reviews: 0,

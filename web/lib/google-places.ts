@@ -153,6 +153,45 @@ export async function reverseGeocode(
   }
 }
 
+// ── Forward geocode (city + state validation) ───────────────────────────
+
+export async function geocodeCity(
+  citySlug: string,
+  stateCode: string,
+): Promise<{ city: string; lat: number; lng: number } | null> {
+  const key = API_KEY()
+  if (!key) return null
+
+  const cityText = citySlug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+  const query = `${cityText}, ${stateCode}, USA`
+
+  try {
+    const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=${key}`
+    const res = await fetch(url, { cache: 'force-cache' })
+    if (!res.ok) return null
+
+    const data = await res.json()
+    if (!data.results || data.results.length === 0) return null
+
+    const result = data.results[0]
+    const parsed = parseAddressComponents(result.address_components ?? [])
+
+    // Must resolve to the same state
+    if (parsed.stateCode !== stateCode) return null
+    // Must be a real locality (not just a state or country result)
+    const types: string[] = result.types ?? []
+    if (!types.some((t: string) => ['locality', 'sublocality', 'neighborhood', 'postal_code'].includes(t))) return null
+
+    return {
+      city: parsed.city ?? cityText,
+      lat: result.geometry?.location?.lat ?? 0,
+      lng: result.geometry?.location?.lng ?? 0,
+    }
+  } catch {
+    return null
+  }
+}
+
 // ── Helpers ─────────────────────────────────────────────────────────────
 
 function parseGooglePlace(data: any): GeocodedPlace {
