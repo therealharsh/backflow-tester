@@ -161,7 +161,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ ok: true, providerSlug })
   } catch (err) {
-    console.error('[register] Error:', err)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    const message = err instanceof Error ? err.message : String(err)
+    console.error('[register] Error:', message, err)
+    return NextResponse.json({ error: `Internal server error: ${message}` }, { status: 500 })
   }
 }
