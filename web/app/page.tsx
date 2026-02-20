@@ -33,19 +33,23 @@ import { STATE_NAMES } from '@/lib/geo-utils'
 // ── Metadata ──────────────────────────────────────────────────────────
 
 export const metadata: Metadata = {
-  title: 'Find Certified Backflow Testers Near You | FindBackflowTesters.com',
+  title: 'Find Certified Backflow Testers Near Me | Fast, Water-Approved',
   description:
-    'Search verified RPZ backflow testers, cross-connection control inspectors, and certified backflow prevention professionals near you. ' +
-    'Annual testing, repair, installation — compliant with city and municipal requirements across the US.',
+    'Need backflow testing fast? Find certified, water-authority approved backflow testers near you. Compare trusted local providers and stay compliant today.',
   openGraph: {
-    title: 'Find Certified Backflow Testers Near You',
+    title: 'Find Certified Backflow Testers Near Me | Fast, Water-Approved',
     description:
-      'Verified RPZ testers, cross-connection inspectors, and backflow repair pros. Browse 750+ providers across 33 states.',
+      'Need backflow testing fast? Find certified, water-authority approved backflow testers near you. Compare trusted local providers and stay compliant today.',
     type: 'website',
-    url: '/',
+    url: 'https://www.findbackflowtesters.com',
   },
-  twitter: { card: 'summary_large_image' },
-  alternates: { canonical: '/' },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Find Certified Backflow Testers Near Me | Fast, Water-Approved',
+    description:
+      'Need backflow testing fast? Find certified, water-authority approved backflow testers near you. Compare trusted local providers and stay compliant today.',
+  },
+  alternates: { canonical: 'https://www.findbackflowtesters.com' },
 }
 
 // ── Static data ───────────────────────────────────────────────────────

@@ -10,7 +10,7 @@ import ListingTracker from '@/components/ListingTracker'
 import Filters from '@/components/Filters'
 import Pagination from '@/components/Pagination'
 import FAQAccordion from '@/components/FAQAccordion'
-import type { Provider, City } from '@/types'
+import type { Provider } from '@/types'
 import {
   generateFAQSchema,
   generateItemListSchema,
@@ -285,48 +285,54 @@ export default async function CityPage({ params, searchParams }: Props) {
 
   const cityName = cityInfo.city
 
-  // ── Build provider query ──────────────────────────────────────────────
-  // Show providers within ~50 miles of the city, same state
-  const BOX = 0.75 // ~50 miles bounding box
-  let query = supabase
-    .from('providers')
-    .select('*', { count: 'exact' })
-    .eq('state_code', stateCode)
+  // ── Fetch providers within 20 miles using proximity RPC ────────────────
+  let allProviders: (Provider & { distance_miles: number })[] = []
 
   if (cityInfo.latitude && cityInfo.longitude) {
-    query = query
-      .gte('latitude', cityInfo.latitude - BOX)
-      .lte('latitude', cityInfo.latitude + BOX)
-      .gte('longitude', cityInfo.longitude - BOX)
-      .lte('longitude', cityInfo.longitude + BOX)
+    const { data } = await supabase.rpc('providers_near_point', {
+      lat: cityInfo.latitude,
+      lon: cityInfo.longitude,
+      radius_miles: 20,
+      max_results: 200,
+      state_filter: null,
+    })
+    allProviders = (data ?? []) as (Provider & { distance_miles: number })[]
   } else {
-    query = query.eq('city_slug', params.city)
+    // Fallback: exact city match when no coordinates available
+    const { data } = await supabase
+      .from('providers')
+      .select('*')
+      .eq('state_code', stateCode)
+      .eq('city_slug', params.city)
+      .order('reviews', { ascending: false })
+      .limit(200)
+    allProviders = ((data ?? []) as Provider[]).map((p) => ({ ...p, distance_miles: 0 }))
   }
 
-  query = query.range((page - 1) * PER_PAGE, page * PER_PAGE - 1)
+  // ── Apply filters in JS ────────────────────────────────────────────────
+  let filtered = [...allProviders]
 
-  // Sort order — premium listings always first
-  query = query.order('premium_rank', { ascending: false })
-  if (sort === 'rating') {
-    query = query.order('rating', { ascending: false }).order('reviews', { ascending: false })
-  } else if (sort === 'score') {
-    query = query.order('backflow_score', { ascending: false }).order('reviews', { ascending: false })
-  } else {
-    query = query.order('reviews', { ascending: false }).order('rating', { ascending: false })
-  }
-
-  if (minRating)  query = query.gte('rating', parseFloat(minRating))
-  if (minReviews) query = query.gte('reviews', parseInt(minReviews, 10))
-  if (testing)    query = query.eq('tier', 'testing')
-
-  // Apply service tag filters
+  if (minRating) filtered = filtered.filter((p) => (p.rating ?? 0) >= parseFloat(minRating))
+  if (minReviews) filtered = filtered.filter((p) => p.reviews >= parseInt(minReviews, 10))
+  if (testing) filtered = filtered.filter((p) => p.tier === 'testing')
   for (const key of activeServices) {
     const tags = SERVICE_FILTERS[key]
-    if (tags) query = query.contains('service_tags', tags)
+    if (tags) filtered = filtered.filter((p) => tags.every((t) => (p.service_tags ?? []).includes(t)))
   }
 
-  const { data: providers, count } = await query
-  const total   = count ?? 0
+  // Sort: premium first, then user-chosen sort, default by distance
+  if (sort === 'rating') {
+    filtered.sort((a, b) => (b.premium_rank ?? 0) - (a.premium_rank ?? 0) || (b.rating ?? 0) - (a.rating ?? 0) || b.reviews - a.reviews)
+  } else if (sort === 'score') {
+    filtered.sort((a, b) => (b.premium_rank ?? 0) - (a.premium_rank ?? 0) || (b.backflow_score ?? 0) - (a.backflow_score ?? 0) || b.reviews - a.reviews)
+  } else {
+    // Default: premium first, then nearest distance
+    filtered.sort((a, b) => (b.premium_rank ?? 0) - (a.premium_rank ?? 0) || a.distance_miles - b.distance_miles)
+  }
+
+  // ── Paginate ────────────────────────────────────────────────────────────
+  const total = filtered.length
+  const providers = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE)
   const hasMore = page * PER_PAGE < total
 
   // ── Nearby cities ─────────────────────────────────────────────────────
@@ -417,7 +423,7 @@ export default async function CityPage({ params, searchParams }: Props) {
       {/* Provider grid */}
       {providers && providers.length > 0 ? (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 mt-6">
-          {providers.map((p: Provider, i: number) => (
+          {providers.map((p, i) => (
             <ListingTracker
               key={p.place_id}
               providerSlug={p.provider_slug}
@@ -426,7 +432,7 @@ export default async function CityPage({ params, searchParams }: Props) {
               isPremium={!!p.is_premium}
               pageType="city"
             >
-              <ProviderCard provider={p} />
+              <ProviderCard provider={p} distanceMiles={p.distance_miles} />
             </ListingTracker>
           ))}
         </div>

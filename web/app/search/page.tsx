@@ -212,8 +212,8 @@ export default async function SearchPage({ searchParams }: Props) {
     const { data, error } = await supabase.rpc('providers_near_point', {
       lat,
       lon: lng,
-      radius_miles: 50,
-      max_results: 30,
+      radius_miles: 20,
+      max_results: 50,
       state_filter: stateFilter,
     })
 
@@ -329,8 +329,8 @@ export default async function SearchPage({ searchParams }: Props) {
         const { data, error } = await supabase.rpc('providers_near_point', {
           lat: geo.lat,
           lon: geo.lon,
-          radius_miles: 25,
-          max_results: 30,
+          radius_miles: 20,
+          max_results: 50,
           state_filter: stateFilter,
         })
 
@@ -338,12 +338,12 @@ export default async function SearchPage({ searchParams }: Props) {
           providers = data as ProviderWithDistance[]
           searchMode = 'proximity'
         } else {
-          // Widen to 50 miles
+          // Widen to 30 miles if nothing within 20
           const { data: wide } = await supabase.rpc('providers_near_point', {
             lat: geo.lat,
             lon: geo.lon,
-            radius_miles: 50,
-            max_results: 30,
+            radius_miles: 30,
+            max_results: 50,
             state_filter: stateFilter,
           })
           if (wide && wide.length > 0) {
@@ -424,13 +424,17 @@ export default async function SearchPage({ searchParams }: Props) {
   const nearbyLng = hasCoords ? parseFloat(lngParam) : null
 
   if (nearbyLat && nearbyLng) {
-    const { data: nearby } = await supabase
+    let nearbyQuery = supabase
       .from('cities')
       .select('city, city_slug, state_code, provider_count')
       .gte('latitude', nearbyLat - 0.5)
       .lte('latitude', nearbyLat + 0.5)
       .gte('longitude', nearbyLng - 0.5)
       .lte('longitude', nearbyLng + 0.5)
+    if (locationStateCode) {
+      nearbyQuery = nearbyQuery.eq('state_code', locationStateCode)
+    }
+    const { data: nearby } = await nearbyQuery
       .order('provider_count', { ascending: false })
       .limit(8)
     nearbyCities = nearby ?? []
