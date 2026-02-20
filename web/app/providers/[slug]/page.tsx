@@ -2,45 +2,61 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { createServerClient } from '@/lib/supabase'
-import { chooseBestImage, parseImageUrls, isJunkImageUrl } from '@/lib/image-utils'
+import { STATE_NAMES } from '@/lib/geo-utils'
+import { parseImageUrls, isJunkImageUrl } from '@/lib/image-utils'
 import type { Provider, ProviderService, ProviderReview } from '@/types'
 import GetQuoteButton from '@/components/GetQuoteButton'
 import ClaimListingCTA from '@/components/ClaimListingCTA'
 import PremiumBadge from '@/components/PremiumBadge'
+import ProviderPageTracker from '@/components/ProviderPageTracker'
 
 interface Props {
   params: { slug: string }
 }
 
-const STATE_NAMES: Record<string, string> = {
-  AL: 'Alabama', AK: 'Alaska', AZ: 'Arizona', AR: 'Arkansas', CA: 'California',
-  CO: 'Colorado', CT: 'Connecticut', DE: 'Delaware', FL: 'Florida', GA: 'Georgia',
-  HI: 'Hawaii', ID: 'Idaho', IL: 'Illinois', IN: 'Indiana', IA: 'Iowa',
-  KS: 'Kansas', KY: 'Kentucky', LA: 'Louisiana', ME: 'Maine', MD: 'Maryland',
-  MA: 'Massachusetts', MI: 'Michigan', MN: 'Minnesota', MS: 'Mississippi', MO: 'Missouri',
-  MT: 'Montana', NE: 'Nebraska', NV: 'Nevada', NH: 'New Hampshire', NJ: 'New Jersey',
-  NM: 'New Mexico', NY: 'New York', NC: 'North Carolina', ND: 'North Dakota', OH: 'Ohio',
-  OK: 'Oklahoma', OR: 'Oregon', PA: 'Pennsylvania', RI: 'Rhode Island', SC: 'South Carolina',
-  SD: 'South Dakota', TN: 'Tennessee', TX: 'Texas', UT: 'Utah', VT: 'Vermont',
-  VA: 'Virginia', WA: 'Washington', WV: 'West Virginia', WI: 'Wisconsin', WY: 'Wyoming',
-  DC: 'Washington D.C.',
-}
+// ── Metadata ──────────────────────────────────────────────────────────
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const supabase = createServerClient()
   const { data: p } = await supabase
     .from('providers')
-    .select('name, city, state_code, rating, reviews')
+    .select('name, city, state_code, rating, reviews, service_tags, image_urls')
     .eq('provider_slug', params.slug)
     .single()
 
   if (!p) return { title: 'Provider Not Found' }
+
+  const stateName = STATE_NAMES[p.state_code] ?? p.state_code
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://findbackflowtesters.com'
+  const pageUrl = `${siteUrl}/providers/${params.slug}`
+
+  const serviceSummary = (p.service_tags ?? []).slice(0, 3).join(', ')
+  const ratingText = p.rating ? `Rated ${p.rating.toFixed(1)} with ${p.reviews?.toLocaleString() ?? 0} reviews. ` : ''
+  const servicesText = serviceSummary ? `Services: ${serviceSummary}. ` : ''
+
+  const images = parseImageUrls(p.image_urls)
+  const ogImage = images.find((u) => !isJunkImageUrl(u)) ?? `${siteUrl}/og-default.png`
+
   return {
-    title: `${p.name} — Backflow Testing in ${p.city}, ${p.state_code}`,
+    title: `${p.name} — Backflow Testing in ${p.city}, ${stateName} | FindBackflowTesters.com`,
     description:
-      `${p.name} offers backflow testing services in ${p.city}, ${p.state_code}. ` +
-      `Rated ${p.rating?.toFixed(1) ?? 'N/A'} with ${p.reviews?.toLocaleString() ?? 0} reviews.`,
-    alternates: { canonical: `/providers/${params.slug}` },
+      `${p.name} offers backflow testing services in ${p.city}, ${stateName}. ` +
+      ratingText + servicesText +
+      `Get a free quote today.`,
+    alternates: { canonical: pageUrl },
+    openGraph: {
+      title: `${p.name} — Backflow Testing in ${p.city}, ${stateName}`,
+      description: `${ratingText}${servicesText}Get a free quote from ${p.name}.`,
+      url: pageUrl,
+      type: 'website',
+      images: [{ url: ogImage }],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: `${p.name} — Backflow Testing in ${p.city}, ${stateName}`,
+      description: `${ratingText}Get a free quote from ${p.name}.`,
+      images: [ogImage],
+    },
   }
 }
 
@@ -62,6 +78,8 @@ export async function generateStaticParams() {
   return slugs
 }
 
+// ── Helpers ───────────────────────────────────────────────────────────
+
 function StarRating({ rating, size = 'md' }: { rating: number; size?: 'sm' | 'md' | 'lg' }) {
   const cls = size === 'lg' ? 'w-6 h-6' : size === 'sm' ? 'w-4 h-4' : 'w-5 h-5'
   return (
@@ -80,6 +98,8 @@ function StarRating({ rating, size = 'md' }: { rating: number; size?: 'sm' | 'md
   )
 }
 
+// ── Page ──────────────────────────────────────────────────────────────
+
 export default async function ProviderPage({ params }: Props) {
   const supabase = createServerClient()
   const { data: provider } = await supabase
@@ -92,14 +112,34 @@ export default async function ProviderPage({ params }: Props) {
 
   const p = provider as Provider
 
-  // Fetch services + reviews in parallel
-  const [servicesRes, reviewsRes] = await Promise.all([
+  // Fetch services, reviews, and nearby providers in parallel
+  const [servicesRes, reviewsRes, nearbyRes] = await Promise.all([
     supabase.from('provider_services').select('*').eq('place_id', p.place_id).single(),
     supabase.from('provider_reviews').select('*').eq('place_id', p.place_id).order('rating', { ascending: false }).limit(4),
+    // Nearby providers: same state, exclude self, ordered by proximity if geo available
+    p.latitude && p.longitude
+      ? supabase.rpc('providers_near_point', {
+          lat: p.latitude,
+          lon: p.longitude,
+          radius_miles: 50,
+          max_results: 7,
+          state_filter: p.state_code,
+        })
+      : supabase
+          .from('providers')
+          .select('name, city, state_code, rating, reviews, provider_slug, city_slug, is_premium')
+          .eq('state_code', p.state_code)
+          .neq('place_id', p.place_id)
+          .order('reviews', { ascending: false })
+          .limit(6),
   ])
 
   const services = servicesRes.data as ProviderService | null
   const reviews  = (reviewsRes.data ?? []) as ProviderReview[]
+  const nearbyRaw = (nearbyRes.data ?? []) as any[]
+  const nearbyProviders = nearbyRaw
+    .filter((n: any) => n.provider_slug !== p.provider_slug)
+    .slice(0, 6)
 
   const allUrls = parseImageUrls(p.image_urls)
   const goodImages = allUrls.filter((u) => !isJunkImageUrl(u)).slice(0, 6)
@@ -109,18 +149,31 @@ export default async function ProviderPage({ params }: Props) {
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://findbackflowtesters.com'
   const stateSlug = p.state_code.toLowerCase()
   const stateName = STATE_NAMES[p.state_code] ?? p.state_code
+  const pageUrl = `${siteUrl}/providers/${p.provider_slug}`
 
-  // JSON-LD LocalBusiness
-  const jsonLd: Record<string, unknown> = {
+  // ── JSON-LD: BreadcrumbList ───────────────────────────────────────
+  const breadcrumbSchema = {
     '@context': 'https://schema.org',
-    '@type': 'LocalBusiness',
-    '@id': `${siteUrl}/providers/${p.provider_slug}`,
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Home', item: siteUrl },
+      { '@type': 'ListItem', position: 2, name: stateName, item: `${siteUrl}/${stateSlug}` },
+      { '@type': 'ListItem', position: 3, name: p.city, item: `${siteUrl}/${stateSlug}/${p.city_slug ?? ''}` },
+      { '@type': 'ListItem', position: 4, name: p.name, item: pageUrl },
+    ],
+  }
+
+  // ── JSON-LD: LocalBusiness ────────────────────────────────────────
+  const localBusinessSchema: Record<string, unknown> = {
+    '@context': 'https://schema.org',
+    '@type': 'Plumber',
+    '@id': pageUrl,
     name: p.name,
     ...(p.phone && { telephone: p.phone }),
     ...(p.website && { url: p.website }),
     address: {
       '@type': 'PostalAddress',
-      streetAddress: p.address,
+      streetAddress: p.address ?? '',
       addressLocality: p.city,
       addressRegion: p.state_code,
       postalCode: p.postal_code ?? '',
@@ -142,14 +195,43 @@ export default async function ProviderPage({ params }: Props) {
         worstRating: '1',
       },
     }),
-    ...(heroImage && { image: heroImage }),
+    ...(goodImages.length > 0 && { image: goodImages }),
+    areaServed: {
+      '@type': 'City',
+      name: p.city,
+      containedInPlace: { '@type': 'State', name: stateName },
+    },
+    ...(p.location_link && { sameAs: [p.location_link] }),
   }
+
+  // Service tags for the SEO section
+  const serviceTags = services
+    ? Object.entries(services.services_json)
+        .filter(([, v]) => v === true)
+        .map(([k]) => k.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()))
+    : (p.service_tags ?? [])
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Analytics */}
+      <ProviderPageTracker
+        providerSlug={p.provider_slug}
+        providerName={p.name}
+        city={p.city}
+        stateCode={p.state_code}
+        isPremium={!!p.is_premium}
+        rating={p.rating}
+        reviews={p.reviews ?? 0}
+      />
+
+      {/* JSON-LD structured data */}
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(localBusinessSchema) }}
       />
 
       {/* Breadcrumb */}
@@ -279,7 +361,7 @@ export default async function ProviderPage({ params }: Props) {
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                   </svg>
-                  Read all {p.reviews?.toLocaleString()} reviews on Google →
+                  Read all {p.reviews?.toLocaleString()} reviews on Google &rarr;
                 </a>
               )}
             </div>
@@ -304,7 +386,7 @@ export default async function ProviderPage({ params }: Props) {
                 <svg className="w-4 h-4 text-gray-400 shrink-0" fill="currentColor" viewBox="0 0 20 20">
                   <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" />
                 </svg>
-                <a href={`tel:${p.phone}`} className="text-blue-600 hover:underline font-medium">{p.phone}</a>
+                <a href={`tel:${p.phone}`} data-track="call_clicked" className="text-blue-600 hover:underline font-medium">{p.phone}</a>
               </div>
             )}
             {p.website && (
@@ -316,6 +398,7 @@ export default async function ProviderPage({ params }: Props) {
                   href={p.website}
                   target="_blank"
                   rel="noopener noreferrer"
+                  data-track="website_clicked"
                   className="text-blue-600 hover:underline truncate"
                 >
                   {p.website.replace(/^https?:\/\/(www\.)?/, '')}
@@ -333,7 +416,7 @@ export default async function ProviderPage({ params }: Props) {
                   rel="noopener noreferrer"
                   className="text-emerald-600 hover:underline"
                 >
-                  Backflow testing verified on their website →
+                  Backflow testing verified on their website &rarr;
                 </a>
               </div>
             )}
@@ -354,6 +437,7 @@ export default async function ProviderPage({ params }: Props) {
                     href={p.location_link}
                     target="_blank"
                     rel="noopener noreferrer"
+                    data-track="directions_clicked"
                     className="text-xs text-blue-600 hover:underline flex items-center gap-1"
                   >
                     Open in Google Maps
@@ -418,7 +502,7 @@ export default async function ProviderPage({ params }: Props) {
                     rel="noopener noreferrer"
                     className="text-xs text-blue-600 hover:underline"
                   >
-                    All {p.reviews?.toLocaleString()} reviews →
+                    All {p.reviews?.toLocaleString()} reviews &rarr;
                   </a>
                 )}
               </div>
@@ -455,7 +539,7 @@ export default async function ProviderPage({ params }: Props) {
                       rel="noopener noreferrer"
                       className="text-xs text-blue-500 hover:underline"
                     >
-                      Read on Google →
+                      Read on Google &rarr;
                     </a>
                   )}
                 </div>
@@ -463,17 +547,103 @@ export default async function ProviderPage({ params }: Props) {
             </div>
           )}
 
-          {/* SEO blurb */}
-          <div className="text-sm text-gray-600 leading-relaxed bg-gray-50 rounded-2xl p-5 border border-gray-100">
-            <h2 className="font-semibold text-gray-800 mb-1">
-              About {p.name}
+          {/* SEO: Backflow Testing in City, State */}
+          <div className="text-sm text-gray-600 leading-relaxed bg-gray-50 rounded-2xl p-5 border border-gray-100 space-y-3">
+            <h2 className="font-semibold text-gray-800 text-base">
+              Backflow Testing in {p.city}, {stateName}
             </h2>
             <p>
-              {p.name} provides backflow prevention testing and certification services in {p.city}, {stateName}.
+              {p.name} provides professional backflow prevention testing and certification services in {p.city}, {stateName}.
               Annual backflow testing is required by most water utilities to protect public water supplies
-              from contamination. Contact {p.name} to schedule your backflow preventer inspection or RPZ valve test.
+              from contamination through cross-connection control compliance.
+              {serviceTags.length > 0 && (
+                <> Their services include {serviceTags.slice(0, 4).join(', ').toLowerCase()}, serving
+                both residential and commercial properties throughout the {p.city} area.</>
+              )}
+            </p>
+            <p>
+              Whether you need a routine RPZ valve inspection, backflow prevention device testing,
+              or a certified tester to file compliance reports with your local water authority,
+              {p.name} can help. Homeowners, HOAs, and property managers can request a free quote
+              using the form on this page.
             </p>
           </div>
+
+          {/* SEO: Service Area */}
+          <div className="bg-white rounded-2xl border border-gray-200 p-5">
+            <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-3">Service Area</h2>
+            <p className="text-sm text-gray-600 mb-3">
+              Serving {p.city}, {stateName} and surrounding areas.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href={`/${stateSlug}/${p.city_slug ?? ''}`}
+                className="px-3 py-1.5 bg-blue-50 border border-blue-100 rounded-full text-xs font-medium text-blue-700 hover:bg-blue-100 transition-colors"
+              >
+                Backflow testers in {p.city}
+              </Link>
+              <Link
+                href={`/${stateSlug}`}
+                className="px-3 py-1.5 bg-blue-50 border border-blue-100 rounded-full text-xs font-medium text-blue-700 hover:bg-blue-100 transition-colors"
+              >
+                All cities in {stateName}
+              </Link>
+              <Link
+                href="/#states"
+                className="px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-full text-xs font-medium text-gray-600 hover:bg-gray-100 transition-colors"
+              >
+                Browse all states
+              </Link>
+            </div>
+          </div>
+
+          {/* Nearby Certified Testers */}
+          {nearbyProviders.length > 0 && (
+            <div>
+              <h2 className="text-lg font-semibold text-gray-800 mb-4">
+                Nearby Certified Testers in {stateName}
+              </h2>
+              <div className="grid sm:grid-cols-2 gap-3">
+                {nearbyProviders.map((n: any) => (
+                  <Link
+                    key={n.provider_slug}
+                    href={`/providers/${n.provider_slug}`}
+                    className="block p-4 bg-white rounded-xl border border-gray-200 hover:border-blue-300 hover:shadow-sm transition-all group"
+                  >
+                    <p className="font-semibold text-gray-900 group-hover:text-blue-700 text-sm leading-tight truncate">
+                      {n.name}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {n.city}, {n.state_code}
+                      {n.distance_miles != null && (
+                        <> &middot; {n.distance_miles.toFixed(1)} mi away</>
+                      )}
+                    </p>
+                    {n.rating && n.reviews > 0 && (
+                      <div className="flex items-center gap-1 mt-1.5">
+                        <svg className="w-3.5 h-3.5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                        </svg>
+                        <span className="text-xs font-medium text-gray-700">{n.rating.toFixed(1)}</span>
+                        <span className="text-xs text-gray-400">({n.reviews})</span>
+                      </div>
+                    )}
+                    <span className="inline-block mt-2 text-xs font-medium text-blue-600 group-hover:text-blue-800">
+                      View profile &rarr;
+                    </span>
+                  </Link>
+                ))}
+              </div>
+              <div className="mt-4">
+                <Link
+                  href={`/${stateSlug}/${p.city_slug ?? ''}`}
+                  className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                >
+                  View all providers in {p.city} &rarr;
+                </Link>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ── Sticky sidebar ── */}
@@ -521,6 +691,7 @@ export default async function ProviderPage({ params }: Props) {
                 href={p.website}
                 target="_blank"
                 rel="noopener noreferrer"
+                data-track="website_clicked"
                 className="flex items-center justify-center gap-2 w-full py-2.5 px-4 bg-white border-2 border-blue-700 text-blue-700 font-semibold rounded-xl hover:bg-blue-50 transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -535,6 +706,7 @@ export default async function ProviderPage({ params }: Props) {
                 href={p.location_link}
                 target="_blank"
                 rel="noopener noreferrer"
+                data-track="directions_clicked"
                 className="flex items-center justify-center gap-2 w-full py-2.5 px-4 bg-white border border-gray-200 text-gray-700 font-medium rounded-xl hover:border-gray-300 transition-colors text-sm"
               >
                 <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">

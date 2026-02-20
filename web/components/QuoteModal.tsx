@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import type { QuoteProviderInfo } from '@/lib/quote-schema'
+import { track } from '@/lib/analytics/client'
+import { logLeadEvent } from '@/lib/analytics/lead-events'
 
 interface Props {
   provider: QuoteProviderInfo
@@ -28,10 +30,14 @@ export default function QuoteModal({ provider, open, onClose }: Props) {
   const [success, setSuccess] = useState(false)
   const [serverError, setServerError] = useState('')
 
-  // Focus first input on open
+  // Focus first input on open + track
   useEffect(() => {
     if (!open) return
     document.body.style.overflow = 'hidden'
+    track('quote_modal_opened', {
+      provider_name: provider.name,
+      provider_place_id: provider.placeId,
+    })
     requestAnimationFrame(() => {
       const el = modalRef.current?.querySelector<HTMLInputElement>('input[name="firstName"]')
       el?.focus()
@@ -39,7 +45,7 @@ export default function QuoteModal({ provider, open, onClose }: Props) {
     return () => {
       document.body.style.overflow = ''
     }
-  }, [open])
+  }, [open, provider.name, provider.placeId])
 
   // Escape key
   const handleEscape = useCallback(
@@ -91,6 +97,23 @@ export default function QuoteModal({ provider, open, onClose }: Props) {
     setSubmitting(true)
     setServerError('')
 
+    // Privacy-safe props — no PII
+    const eventProps = {
+      provider_name: provider.name,
+      provider_place_id: provider.placeId,
+      has_phone: !!phone.trim(),
+      has_address: !!address.trim(),
+      has_notes: !!notes.trim(),
+    }
+
+    track('quote_submit_attempted', eventProps)
+    logLeadEvent({
+      event: 'quote_submitted',
+      providerId: provider.placeId,
+      providerName: provider.name,
+      metadata: eventProps,
+    })
+
     try {
       const res = await fetch('/api/quote', {
         method: 'POST',
@@ -111,12 +134,32 @@ export default function QuoteModal({ provider, open, onClose }: Props) {
 
       if (res.ok) {
         setSuccess(true)
+        track('quote_submit_succeeded', eventProps)
+        logLeadEvent({
+          event: 'quote_succeeded',
+          providerId: provider.placeId,
+          providerName: provider.name,
+        })
       } else {
         const body = await res.json().catch(() => ({}))
         setServerError(body.error ?? 'Something went wrong. Please try again.')
+        track('quote_submit_failed', { ...eventProps, error: body.error ?? 'unknown' })
+        logLeadEvent({
+          event: 'quote_failed',
+          providerId: provider.placeId,
+          providerName: provider.name,
+          metadata: { error: body.error ?? 'unknown' },
+        })
       }
     } catch {
       setServerError('Network error. Please check your connection and try again.')
+      track('quote_submit_failed', { ...eventProps, error: 'network_error' })
+      logLeadEvent({
+        event: 'quote_failed',
+        providerId: provider.placeId,
+        providerName: provider.name,
+        metadata: { error: 'network_error' },
+      })
     } finally {
       setSubmitting(false)
     }
@@ -172,9 +215,19 @@ export default function QuoteModal({ provider, open, onClose }: Props) {
             <p className="text-gray-400 text-xs mb-6">
               Your request for <span className="font-medium text-gray-600">{provider.name}</span> has been submitted.
             </p>
-            <button onClick={onClose} className="btn-primary">
-              Close
-            </button>
+            <div className="flex flex-col items-center gap-3">
+              <button onClick={onClose} className="btn-primary">
+                Close
+              </button>
+              {provider.city && provider.stateCode && (
+                <a
+                  href={`/${provider.stateCode.toLowerCase()}/${provider.city.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}
+                  className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                >
+                  View more providers in {provider.city} &rarr;
+                </a>
+              )}
+            </div>
           </div>
         ) : (
           /* ── Form state ── */

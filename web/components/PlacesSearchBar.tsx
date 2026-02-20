@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { slugify } from '@/lib/geo-utils'
+import { track } from '@/lib/analytics/client'
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -131,6 +132,9 @@ export default function PlacesSearchBar({ variant, defaultValue = '', autoFocus 
         setPredictions(data)
         setOpen(data.length > 0)
         setActiveIndex(-1)
+        if (data.length > 0) {
+          track('autocomplete_shown', { query: q, result_count: data.length })
+        }
       } catch {
         setPredictions([])
         setOpen(false)
@@ -186,6 +190,11 @@ export default function PlacesSearchBar({ variant, defaultValue = '', autoFocus 
   async function selectPrediction(pred: Prediction) {
     setOpen(false)
     setLoading(true)
+    track('autocomplete_selected', {
+      place_id: pred.placeId,
+      main_text: pred.mainText,
+      types: pred.types,
+    })
 
     try {
       const params = new URLSearchParams({
@@ -233,6 +242,7 @@ export default function PlacesSearchBar({ variant, defaultValue = '', autoFocus 
     if (locationLoading) return
     setLocationLoading(true)
     setLocationError('')
+    track('use_my_location_clicked')
 
     try {
       const position = await new Promise<GeolocationPosition>((resolve, reject) => {
@@ -294,6 +304,7 @@ export default function PlacesSearchBar({ variant, defaultValue = '', autoFocus 
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    track('search_submitted', { query: value, variant, had_predictions: predictions.length > 0 })
     if (activeIndex >= 0 && predictions[activeIndex]) {
       selectPrediction(predictions[activeIndex])
       return

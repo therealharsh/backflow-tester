@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createServerClient } from '@/lib/supabase'
 import ProviderCard from '@/components/ProviderCard'
+import ListingTracker from '@/components/ListingTracker'
 import Filters from '@/components/Filters'
 import FAQAccordion from '@/components/FAQAccordion'
 import PlacesSearchBar from '@/components/PlacesSearchBar'
@@ -25,18 +26,47 @@ interface Props {
 export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
   const label = sp(searchParams.label)
   const query = sp(searchParams.query)
+  const stateParam = sp(searchParams.state).toUpperCase()
   const display = label || query
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://findbackflowtesters.com'
 
   const title = display
     ? `Backflow Testers near ${display}`
     : 'Search Backflow Testers'
+
+  // Build canonical: point to the best matching location page
+  let canonical = siteUrl // fallback to homepage
+  if (label && stateParam && STATE_NAMES[stateParam]) {
+    // Try to resolve "City, ST" label to a known city page
+    const parts = label.split(',').map((s) => s.trim())
+    if (parts.length >= 2) {
+      const citySlug = parts[0].toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+      const supabase = createServerClient()
+      const { data: match } = await supabase
+        .from('cities')
+        .select('city_slug')
+        .eq('state_code', stateParam)
+        .eq('city_slug', citySlug)
+        .limit(1)
+      if (match && match.length > 0) {
+        canonical = `${siteUrl}/${stateParam.toLowerCase()}/${match[0].city_slug}`
+      } else {
+        canonical = `${siteUrl}/${stateParam.toLowerCase()}`
+      }
+    } else {
+      canonical = `${siteUrl}/${stateParam.toLowerCase()}`
+    }
+  } else if (stateParam && STATE_NAMES[stateParam]) {
+    canonical = `${siteUrl}/${stateParam.toLowerCase()}`
+  }
 
   return {
     title,
     description: display
       ? `Find certified backflow testing professionals near ${display}. Compare ratings, reviews, and services.`
       : 'Search for certified backflow testing professionals near you.',
-    robots: { index: false },
+    robots: { index: false, follow: true },
+    alternates: { canonical },
   }
 }
 
@@ -282,6 +312,18 @@ export default async function SearchPage({ searchParams }: Props) {
           }
         }
 
+        // Redirect to coords-based URL so the title/label are clean
+        if (locationCity && locationStateCode) {
+          const resolvedLabel = `${locationCity}, ${locationStateCode}`
+          const qs = new URLSearchParams({
+            lat: String(geo.lat),
+            lng: String(geo.lon),
+            state: locationStateCode,
+            label: resolvedLabel,
+          })
+          redirect(`/search?${qs.toString()}`)
+        }
+
         // Call the Haversine RPC with state filter for ZIP queries
         const stateFilter = isZipQuery && locationStateCode ? locationStateCode : null
         const { data, error } = await supabase.rpc('providers_near_point', {
@@ -503,12 +545,20 @@ export default async function SearchPage({ searchParams }: Props) {
         </div>
       ) : filtered.length > 0 ? (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 mt-6">
-          {filtered.map((p) => (
-            <ProviderCard
+          {filtered.map((p, i) => (
+            <ListingTracker
               key={p.place_id}
-              provider={p}
-              distanceMiles={searchMode === 'proximity' ? p.distance_miles : undefined}
-            />
+              providerSlug={p.provider_slug}
+              providerName={p.name}
+              position={i}
+              isPremium={!!p.is_premium}
+              pageType="search"
+            >
+              <ProviderCard
+                provider={p}
+                distanceMiles={searchMode === 'proximity' ? p.distance_miles : undefined}
+              />
+            </ListingTracker>
           ))}
         </div>
       ) : null}
