@@ -78,6 +78,7 @@ export interface BlogPost {
   excerpt: string | null
   content: string
   cover_image_url: string | null
+  cover_image_alt: string | null
   tags: string[]
   status: 'draft' | 'published'
   published_at: string | null

@@ -103,7 +103,7 @@ export default async function BlogPostPage({ params }: Props) {
         {post.cover_image_url && (
           <img
             src={post.cover_image_url}
-            alt={post.title}
+            alt={post.cover_image_alt || post.title}
             className="w-full rounded-2xl mb-8 max-h-[400px] object-cover"
           />
         )}
