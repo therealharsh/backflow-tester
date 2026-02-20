@@ -6,6 +6,7 @@ import { STATE_NAMES } from '@/lib/geo-utils'
 import { geocodeCity } from '@/lib/google-places'
 import EmptyResultsState from '@/components/EmptyResultsState'
 import ProviderCard from '@/components/ProviderCard'
+import ListingTracker from '@/components/ListingTracker'
 import Filters from '@/components/Filters'
 import Pagination from '@/components/Pagination'
 import FAQAccordion from '@/components/FAQAccordion'
@@ -416,8 +417,17 @@ export default async function CityPage({ params, searchParams }: Props) {
       {/* Provider grid */}
       {providers && providers.length > 0 ? (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 mt-6">
-          {providers.map((p: Provider) => (
-            <ProviderCard key={p.place_id} provider={p} />
+          {providers.map((p: Provider, i: number) => (
+            <ListingTracker
+              key={p.place_id}
+              providerSlug={p.provider_slug}
+              providerName={p.name}
+              position={i}
+              isPremium={!!p.is_premium}
+              pageType="city"
+            >
+              <ProviderCard provider={p} />
+            </ListingTracker>
           ))}
         </div>
       ) : (

@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 import Link from 'next/link'
 import NavGetQuote from '@/components/NavGetQuote'
+import PostHogProvider from '@/components/PostHogProvider'
 
 export const metadata: Metadata = {
   title: {
@@ -31,6 +32,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body className="min-h-screen flex flex-col bg-gray-50 text-gray-900 antialiased">
+        <PostHogProvider>
         {/* Header — white sticky bar */}
         <header className="bg-white border-b border-gray-100 sticky top-0 z-50 shadow-sm">
           <div className="section flex items-center justify-between h-16">
@@ -88,6 +90,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </div>
           </div>
         </footer>
+        </PostHogProvider>
       </body>
     </html>
   )

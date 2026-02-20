@@ -4,7 +4,7 @@ const BASE = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://findbackflowtesters.co
 
 export default function robots(): MetadataRoute.Robots {
   return {
-    rules: [{ userAgent: '*', allow: '/', disallow: '/admin/' }],
+    rules: [{ userAgent: '*', allow: '/', disallow: ['/admin/', '/search', '/api/'] }],
     sitemap: `${BASE}/sitemap.xml`,
   }
 }

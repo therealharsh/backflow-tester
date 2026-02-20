@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import QuoteModal from './QuoteModal'
 import type { QuoteProviderInfo } from '@/lib/quote-schema'
+import { track } from '@/lib/analytics/client'
+import { logLeadEvent } from '@/lib/analytics/lead-events'
 
 interface Props {
   provider: QuoteProviderInfo
@@ -20,7 +22,11 @@ export default function GetQuoteButton({ provider, variant = 'card' }: Props) {
 
   return (
     <>
-      <button onClick={() => setOpen(true)} className={cls}>
+      <button onClick={() => {
+        track('get_quote_clicked', { provider_name: provider.name, provider_place_id: provider.placeId, variant })
+        logLeadEvent({ event: 'get_quote_clicked', providerId: provider.placeId, providerName: provider.name })
+        setOpen(true)
+      }} className={cls}>
         <svg className={variant === 'sidebar' ? 'w-4 h-4' : 'w-3.5 h-3.5'} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
         </svg>

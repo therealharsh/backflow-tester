@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { Resend } from 'resend'
+import { createServerClient } from '@/lib/supabase'
 import { quoteRequestSchema, type QuoteRequest } from '@/lib/quote-schema'
 
 export const dynamic = 'force-dynamic'
@@ -58,7 +59,27 @@ export async function POST(request: Request) {
       text,
     })
 
-    // Log for future DB persistence hook
+    // Store lead in Supabase
+    try {
+      const supabase = createServerClient()
+      await supabase.from('leads').insert({
+        provider_id: p.placeId,
+        provider_slug: p.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+        provider_name: p.name,
+        first_name: data.firstName,
+        last_name: data.lastName || null,
+        email: data.email,
+        phone: data.phone || null,
+        address: data.address || null,
+        notes: data.notes || null,
+        source: 'provider_page',
+        page_url: data.pageUrl || null,
+        ip_address: ip,
+      })
+    } catch (dbErr) {
+      console.error('[quote] Lead DB insert failed (non-fatal):', dbErr)
+    }
+
     console.log('[quote] Lead sent', {
       provider: p.name,
       city: p.city,
