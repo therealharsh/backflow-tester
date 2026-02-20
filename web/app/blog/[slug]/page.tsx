@@ -88,31 +88,10 @@ export default async function BlogPostPage({ params }: Props) {
           <span className="text-gray-600 truncate">{post.title}</span>
         </nav>
 
-        {post.cover_image_url && (
-          <img
-            src={post.cover_image_url}
-            alt={post.title}
-            className="w-full rounded-2xl mb-8 max-h-[400px] object-cover"
-          />
-        )}
-
-        {post.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mb-4">
-            {post.tags.map((tag) => (
-              <span
-                key={tag}
-                className="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-700"
-              >
-                {tag}
-              </span>
-            ))}
-          </div>
-        )}
-
         <h1 className="text-3xl sm:text-4xl font-bold mb-3">{post.title}</h1>
 
         {post.published_at && (
-          <p className="text-sm text-gray-400 mb-8">
+          <p className="text-sm text-gray-400 mb-6">
             {new Date(post.published_at).toLocaleDateString('en-US', {
               year: 'numeric',
               month: 'long',
@@ -121,12 +100,33 @@ export default async function BlogPostPage({ params }: Props) {
           </p>
         )}
 
+        {post.cover_image_url && (
+          <img
+            src={post.cover_image_url}
+            alt={post.title}
+            className="w-full rounded-2xl mb-8 max-h-[400px] object-cover"
+          />
+        )}
+
         <div
           className="blog-content"
           dangerouslySetInnerHTML={{ __html: html }}
         />
 
-        <div className="mt-12 pt-8 border-t border-gray-100">
+        {post.tags.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-10 pt-8 border-t border-gray-100">
+            {post.tags.map((tag) => (
+              <span
+                key={tag}
+                className="text-xs font-medium px-2.5 py-1 rounded-full bg-blue-50 text-blue-700"
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
+
+        <div className={`mt-8 ${post.tags.length === 0 ? 'pt-8 border-t border-gray-100' : ''}`}>
           <Link
             href="/blog"
             className="text-blue-600 hover:text-blue-800 font-medium text-sm transition-colors"
