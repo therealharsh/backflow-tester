@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { revalidatePath } from 'next/cache'
 import { verifyAdmin, createServiceClient } from '@/lib/admin'
 
 /** GET /api/admin/blog — list all posts (drafts + published) */
@@ -32,6 +33,7 @@ export async function POST(request: Request) {
       excerpt: body.excerpt ?? null,
       content: body.content ?? '',
       cover_image_url: body.cover_image_url ?? null,
+      cover_image_alt: body.cover_image_alt ?? null,
       tags: body.tags ?? [],
       status: body.status ?? 'draft',
       published_at: body.status === 'published' ? (body.published_at ?? new Date().toISOString()) : null,
@@ -42,5 +44,9 @@ export async function POST(request: Request) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  revalidatePath('/blog')
+  if (data.slug) revalidatePath(`/blog/${data.slug}`)
+
   return NextResponse.json(data, { status: 201 })
 }

@@ -45,10 +45,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Link href="/" className="px-3 py-2 text-gray-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors hidden sm:block">
                 Home
               </Link>
+              <Link href="/learn" className="px-3 py-2 text-gray-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors hidden sm:block">
+                Learn
+              </Link>
+              <Link href="/faqs" className="px-3 py-2 text-gray-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors hidden sm:block">
+                FAQs
+              </Link>
               <Link href="/blog" className="px-3 py-2 text-gray-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors">
                 Blog
               </Link>
-              <Link href="/#states" className="px-3 py-2 text-gray-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors">
+              <Link href="/#states" className="px-3 py-2 text-gray-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors hidden sm:block">
                 Browse States
               </Link>
               <NavGetQuote />
@@ -61,7 +67,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* Footer */}
         <footer className="bg-gray-900 text-gray-400">
           <div className="section py-12">
-            <div className="grid sm:grid-cols-3 gap-8 mb-8">
+            <div className="grid sm:grid-cols-4 gap-8 mb-8">
               <div>
                 <div className="flex items-center gap-2 text-white font-bold mb-3 text-sm">
                   <span className="text-blue-400">●</span> FindBackflowTesters.com
@@ -76,6 +82,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   <li><Link href="/" className="hover:text-white transition-colors">Home</Link></li>
                   <li><Link href="/blog" className="hover:text-white transition-colors">Blog</Link></li>
                   <li><Link href="/#states" className="hover:text-white transition-colors">Browse by State</Link></li>
+                </ul>
+              </div>
+              <div>
+                <p className="text-white font-semibold mb-3 text-sm uppercase tracking-wide">Resources</p>
+                <ul className="space-y-2 text-sm">
+                  <li><Link href="/learn" className="hover:text-white transition-colors">Learning Center</Link></li>
+                  <li><Link href="/faqs" className="hover:text-white transition-colors">FAQs</Link></li>
+                  <li><Link href="/about" className="hover:text-white transition-colors">About Us</Link></li>
+                  <li><Link href="/contact" className="hover:text-white transition-colors">Contact</Link></li>
                 </ul>
               </div>
               <div>

@@ -35,7 +35,7 @@ export default async function BlogPage() {
             {post.cover_image_url && (
               <img
                 src={post.cover_image_url}
-                alt={post.title}
+                alt={post.cover_image_alt || post.title}
                 className="w-full h-48 object-cover"
               />
             )}

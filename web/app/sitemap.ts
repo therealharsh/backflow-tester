@@ -12,6 +12,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Homepage
   urls.push({ url: BASE, changeFrequency: 'weekly', priority: 1.0 })
 
+  // Static informational pages
+  for (const path of ['/about', '/contact', '/faqs', '/learn', '/learn/why-backflow-testing-required', '/learn/choose-the-right-provider']) {
+    urls.push({ url: `${BASE}${path}`, changeFrequency: 'monthly', priority: 0.7 })
+  }
+
   // All 50 states + DC — always included even if no providers
   for (const code of Object.keys(STATE_NAMES)) {
     urls.push({

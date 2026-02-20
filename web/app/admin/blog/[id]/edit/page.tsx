@@ -56,7 +56,7 @@ export default function EditPostPage() {
     <div>
       <h1 className="text-2xl font-bold mb-6">Edit Post</h1>
       {error && <p className="text-red-600 text-sm mb-4">{error}</p>}
-      <PostForm post={post} onSave={handleSave} />
+      <PostForm post={post} onSave={handleSave} accessToken={session!.access_token} />
     </div>
   )
 }

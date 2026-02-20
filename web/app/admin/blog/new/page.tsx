@@ -38,7 +38,7 @@ export default function NewPostPage() {
     <div>
       <h1 className="text-2xl font-bold mb-6">New Post</h1>
       {error && <p className="text-red-600 text-sm mb-4">{error}</p>}
-      <PostForm onSave={handleSave} />
+      <PostForm onSave={handleSave} accessToken={session!.access_token} />
     </div>
   )
 }

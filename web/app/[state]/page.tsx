@@ -6,7 +6,6 @@ import { STATE_NAMES } from '@/lib/geo-utils'
 import { generateFAQSchema, type FAQItem } from '@/lib/schema'
 import EmptyResultsState from '@/components/EmptyResultsState'
 import FAQAccordion from '@/components/FAQAccordion'
-import type { City } from '@/types'
 
 interface Props {
   params: { state: string }
@@ -75,13 +74,12 @@ export default async function StatePage({ params }: Props) {
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://findbackflowtesters.com'
 
   const { data: cities } = await supabase
-    .from('cities')
-    .select('*')
-    .eq('state_code', stateCode)
-    .order('provider_count', { ascending: false })
+    .rpc('cities_with_nearby_count', { p_state_code: stateCode }) as {
+      data: { id: number; city: string; city_slug: string; state_code: string; latitude: number; longitude: number; provider_count: number; nearby_count: number }[] | null
+    }
 
   const hasCities = cities && cities.length > 0
-  const totalProviders = hasCities ? cities.reduce((s, c) => s + c.provider_count, 0) : 0
+  const totalProviders = hasCities ? cities.reduce((s: number, c: { nearby_count: number }) => s + c.nearby_count, 0) : 0
 
   // Structured data
   const breadcrumbSchema = {
@@ -141,7 +139,7 @@ export default async function StatePage({ params }: Props) {
 
           {/* City grid */}
           <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {cities.map((city: City) => (
+            {cities.map((city) => (
               <Link
                 key={city.id}
                 href={`/${params.state}/${city.city_slug}`}
@@ -151,8 +149,8 @@ export default async function StatePage({ params }: Props) {
                   {city.city}
                 </h2>
                 <p className="text-sm text-gray-500 mt-1">
-                  {city.provider_count.toLocaleString()} provider
-                  {city.provider_count !== 1 ? 's' : ''}
+                  {city.nearby_count.toLocaleString()} provider
+                  {city.nearby_count !== 1 ? 's' : ''} nearby
                 </p>
                 <span className="inline-block mt-3 text-xs font-medium text-brand-600 group-hover:text-brand-800">
                   View all →
