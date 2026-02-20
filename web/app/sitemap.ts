@@ -21,18 +21,42 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     })
   }
 
-  // City pages from DB
+  // City pages — union of cities table + distinct provider city/state combos
+  const citySet = new Set<string>()
+
   const { data: cities } = await supabase
     .from('cities')
     .select('city_slug, state_code, updated_at')
     .order('provider_count', { ascending: false })
 
   for (const c of cities ?? []) {
+    const key = `${c.state_code.toLowerCase()}/${c.city_slug}`
+    if (citySet.has(key)) continue
+    citySet.add(key)
     urls.push({
-      url: `${BASE}/${c.state_code.toLowerCase()}/${c.city_slug}`,
+      url: `${BASE}/${key}`,
       changeFrequency: 'weekly',
       priority: 0.7,
       ...(c.updated_at ? { lastModified: new Date(c.updated_at) } : {}),
+    })
+  }
+
+  // Also include any provider city/state combos not in the cities table
+  const { data: providerCities } = await supabase
+    .from('providers')
+    .select('city_slug, state_code')
+    .not('city_slug', 'is', null)
+    .not('state_code', 'is', null)
+
+  for (const pc of providerCities ?? []) {
+    if (!pc.city_slug || !pc.state_code) continue
+    const key = `${pc.state_code.toLowerCase()}/${pc.city_slug}`
+    if (citySet.has(key)) continue
+    citySet.add(key)
+    urls.push({
+      url: `${BASE}/${key}`,
+      changeFrequency: 'weekly',
+      priority: 0.7,
     })
   }
 
