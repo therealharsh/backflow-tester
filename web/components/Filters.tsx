@@ -60,7 +60,8 @@ export default function Filters({ minRating, minReviews, testing, sort, activeSe
             onChange={(e) => update('sort', e.target.value || null)}
             className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
           >
-            <option value="">Most reviewed</option>
+            <option value="">Nearest</option>
+            <option value="reviews">Most reviewed</option>
             <option value="rating">Highest rated</option>
             <option value="score">Best match</option>
           </select>

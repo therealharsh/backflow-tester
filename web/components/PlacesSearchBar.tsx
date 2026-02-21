@@ -401,7 +401,7 @@ export default function PlacesSearchBar({ variant, defaultValue = '', autoFocus 
         </div>
 
         <button type="submit" className={buttonCls}>
-          {isHero ? 'Find Certified Testers' : 'Search'}
+          {isHero ? 'Find Certified Backflow Testers' : 'Search'}
         </button>
       </form>
 
