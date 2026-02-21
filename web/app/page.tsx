@@ -67,7 +67,7 @@ const FEATURES = [
   },
   {
     title: 'Local & Specific',
-    desc: 'Browse by state \u2192 city to find certified testers in your exact service area, not national chains.',
+    desc: 'Browse by state \u2192 city to find certified backflow testers in your exact service area, not national chains.',
     icon: <MapPin className="w-6 h-6" />,
   },
 ]

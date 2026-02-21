@@ -1,9 +1,10 @@
 import type { MetadataRoute } from 'next'
 import { createServerClient } from '@/lib/supabase'
 import { getPublishedPosts } from '@/lib/blog'
-import { STATE_NAMES } from '@/lib/geo-utils'
+import { STATE_NAMES, haversineDistance } from '@/lib/geo-utils'
+import { getAllCities } from '@/lib/city-data'
 
-const BASE = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://findbackflowtesters.com'
+const BASE = 'https://www.findbackflowtesters.com'
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const supabase = createServerClient()
@@ -26,42 +27,62 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     })
   }
 
-  // City pages — union of cities table + distinct provider city/state combos
-  const citySet = new Set<string>()
+  // ── City pages — only indexable ones (>= 3 same-state providers within 20 mi) ─
+  // Fetch all provider coordinates with state code
+  const { data: allProviders } = await supabase
+    .from('providers')
+    .select('latitude, longitude, state_code')
+    .not('latitude', 'is', null)
+    .not('longitude', 'is', null)
 
-  const { data: cities } = await supabase
+  const providerCoords = (allProviders ?? []) as { latitude: number; longitude: number; state_code: string }[]
+
+  // Group providers by state for same-state matching
+  const providersByState = new Map<string, { latitude: number; longitude: number }[]>()
+  for (const p of providerCoords) {
+    const list = providersByState.get(p.state_code) ?? []
+    list.push({ latitude: p.latitude, longitude: p.longitude })
+    providersByState.set(p.state_code, list)
+  }
+
+  const datasetCities = getAllCities()
+  const indexedCitySlugs = new Set<string>()
+
+  for (const city of datasetCities) {
+    const stateProviders = providersByState.get(city.state_code) ?? []
+    let count = 0
+    for (const p of stateProviders) {
+      if (haversineDistance(city.lat, city.lng, p.latitude, p.longitude) <= 20) {
+        count++
+        if (count >= 3) break
+      }
+    }
+    if (count >= 3) {
+      const key = `${city.state_code.toLowerCase()}/${city.slug}`
+      indexedCitySlugs.add(key)
+      urls.push({
+        url: `${BASE}/${key}`,
+        changeFrequency: 'weekly',
+        priority: 0.7,
+      })
+    }
+  }
+
+  // Also include DB cities not in dataset that have providers
+  const { data: dbCities } = await supabase
     .from('cities')
     .select('city_slug, state_code, updated_at')
-    .order('provider_count', { ascending: false })
+    .gt('provider_count', 0)
 
-  for (const c of cities ?? []) {
+  for (const c of dbCities ?? []) {
     const key = `${c.state_code.toLowerCase()}/${c.city_slug}`
-    if (citySet.has(key)) continue
-    citySet.add(key)
+    if (indexedCitySlugs.has(key)) continue
+    indexedCitySlugs.add(key)
     urls.push({
       url: `${BASE}/${key}`,
       changeFrequency: 'weekly',
       priority: 0.7,
       ...(c.updated_at ? { lastModified: new Date(c.updated_at) } : {}),
-    })
-  }
-
-  // Also include any provider city/state combos not in the cities table
-  const { data: providerCities } = await supabase
-    .from('providers')
-    .select('city_slug, state_code')
-    .not('city_slug', 'is', null)
-    .not('state_code', 'is', null)
-
-  for (const pc of providerCities ?? []) {
-    if (!pc.city_slug || !pc.state_code) continue
-    const key = `${pc.state_code.toLowerCase()}/${pc.city_slug}`
-    if (citySet.has(key)) continue
-    citySet.add(key)
-    urls.push({
-      url: `${BASE}/${key}`,
-      changeFrequency: 'weekly',
-      priority: 0.7,
     })
   }
 

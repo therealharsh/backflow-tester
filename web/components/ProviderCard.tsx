@@ -54,7 +54,7 @@ export default function ProviderCard({ provider: p, distanceMiles }: Props) {
   const isPremium = p.is_premium && p.premium_plan
 
   return (
-    <div className={`rounded-2xl border overflow-hidden hover:shadow-lg transition-all duration-200 flex flex-col group ${
+    <div className={`h-full rounded-2xl border overflow-hidden hover:shadow-lg transition-all duration-200 flex flex-col group ${
       isPremium
         ? 'border-blue-300 bg-blue-50/30 ring-1 ring-blue-200'
         : 'border-gray-200 bg-white hover:border-blue-200'
@@ -121,41 +121,45 @@ export default function ProviderCard({ provider: p, distanceMiles }: Props) {
           {highlights.join(' \u00b7 ')}
         </p>
 
-        {/* Service chips */}
-        {chips.length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-2.5">
-            {chips.map((tag) => (
-              <span
-                key={tag}
-                className="inline-flex items-center text-[11px] font-medium text-blue-700 bg-blue-50 border border-blue-100 rounded-full px-2 py-0.5"
-              >
-                {tag}
-              </span>
-            ))}
-          </div>
-        )}
+        {/* Service chips — fixed height slot */}
+        <div className="min-h-[28px] mt-2.5">
+          {chips.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {chips.map((tag) => (
+                <span
+                  key={tag}
+                  className="inline-flex items-center text-[11px] font-medium text-blue-700 bg-blue-50 border border-blue-100 rounded-full px-2 py-0.5"
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
 
-        {/* Review excerpt */}
-        {p.top_review_excerpt && (
-          <div className="mt-2.5">
-            <p className="text-xs text-gray-500 italic leading-relaxed line-clamp-2">
-              &ldquo;{p.top_review_excerpt}&rdquo;
-            </p>
-            {p.reviews_link && (
-              <a
-                href={p.reviews_link}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-0.5 mt-1 text-[11px] font-medium text-blue-600 hover:text-blue-800 transition-colors"
-              >
-                Read more on Google
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-              </a>
-            )}
-          </div>
-        )}
+        {/* Review excerpt — fixed height slot */}
+        <div className="min-h-[48px] mt-2.5">
+          {p.top_review_excerpt && (
+            <>
+              <p className="text-xs text-gray-500 italic leading-relaxed line-clamp-2">
+                &ldquo;{p.top_review_excerpt}&rdquo;
+              </p>
+              {p.reviews_link && (
+                <a
+                  href={p.reviews_link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-0.5 mt-1 text-[11px] font-medium text-blue-600 hover:text-blue-800 transition-colors"
+                >
+                  Read more on Google
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                </a>
+              )}
+            </>
+          )}
+        </div>
 
         {/* Spacer */}
         <div className="flex-1" />

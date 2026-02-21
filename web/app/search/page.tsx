@@ -413,9 +413,15 @@ export default async function SearchPage({ searchParams }: Props) {
     filtered.sort((a, b) => (b.premium_rank ?? 0) - (a.premium_rank ?? 0) || (b.rating ?? 0) - (a.rating ?? 0) || b.reviews - a.reviews)
   } else if (sort === 'score') {
     filtered.sort((a, b) => (b.premium_rank ?? 0) - (a.premium_rank ?? 0) || (b.backflow_score ?? 0) - (a.backflow_score ?? 0) || b.reviews - a.reviews)
+  } else if (sort === 'reviews') {
+    filtered.sort((a, b) => (b.premium_rank ?? 0) - (a.premium_rank ?? 0) || b.reviews - a.reviews)
   } else {
-    // Default: premium first, then keep existing order (distance for proximity, reviews for text)
-    filtered.sort((a, b) => (b.premium_rank ?? 0) - (a.premium_rank ?? 0))
+    // Default (Nearest): premium first, then distance for proximity searches, reviews for text searches
+    if (searchMode === 'proximity') {
+      filtered.sort((a, b) => (b.premium_rank ?? 0) - (a.premium_rank ?? 0) || (a.distance_miles ?? 999) - (b.distance_miles ?? 999))
+    } else {
+      filtered.sort((a, b) => (b.premium_rank ?? 0) - (a.premium_rank ?? 0) || b.reviews - a.reviews)
+    }
   }
 
   // ── Nearby cities ─────────────────────────────────────────────────────
