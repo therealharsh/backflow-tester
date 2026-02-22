@@ -4,7 +4,7 @@
  */
 
 import { createServerClient } from './supabase'
-import { getPublishedPosts } from './blog'
+import { listPublishedPosts } from './blog'
 import { STATE_NAMES } from './geo-utils'
 import type { BlogPost } from '@/types'
 
@@ -191,7 +191,7 @@ export interface BlogInfo {
 }
 
 export async function fetchBlogSlugs(): Promise<BlogInfo[]> {
-  const posts = await getPublishedPosts()
+  const posts = await listPublishedPosts()
   return posts.map((p) => ({
     slug: p.slug,
     lastUpdated: p.updated_at ?? p.published_at ?? null,

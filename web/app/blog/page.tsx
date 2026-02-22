@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { getPublishedPosts } from '@/lib/blog'
+import { listPublishedPosts } from '@/lib/blog'
 
 export const metadata: Metadata = {
   title: 'Blog',
@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 export const revalidate = 600 // refresh every 10 min
 
 export default async function BlogPage() {
-  const posts = await getPublishedPosts()
+  const posts = await listPublishedPosts()
 
   return (
     <div className="section py-12">

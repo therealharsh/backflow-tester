@@ -1,4 +1,4 @@
-import { getPublishedPosts } from '@/lib/blog'
+import { listPublishedPosts } from '@/lib/blog'
 
 const BASE = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://findbackflowtesters.com'
 
@@ -11,7 +11,7 @@ function escapeXml(s: string) {
 }
 
 export async function GET() {
-  const posts = await getPublishedPosts()
+  const posts = await listPublishedPosts()
 
   const items = posts
     .map(

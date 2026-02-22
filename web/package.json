@@ -14,7 +14,8 @@
     "crawl:verify": "cd .. && make crawl-verify",
     "crawl:upsert": "cd .. && make crawl-upsert",
     "crawl:sitemap": "cd .. && make crawl-sitemap",
-    "crawl:all": "cd .. && make crawl-all"
+    "crawl:all": "cd .. && make crawl-all",
+    "blog:dedupe": "npx tsx scripts/blog-dedupe.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

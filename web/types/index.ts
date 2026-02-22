@@ -84,6 +84,7 @@ export interface BlogPost {
   published_at: string | null
   seo_title: string | null
   seo_description: string | null
+  redirect_from: string[]
   created_at: string
   updated_at: string
 }

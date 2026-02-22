@@ -1,8 +1,8 @@
 import type { Metadata } from 'next'
-import { notFound } from 'next/navigation'
+import { notFound, permanentRedirect } from 'next/navigation'
 import Link from 'next/link'
 import { marked } from 'marked'
-import { getPostBySlug, getPublishedPosts } from '@/lib/blog'
+import { getPublishedPostBySlugOrRedirect, listPublishedPosts } from '@/lib/blog'
 
 const BASE = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://findbackflowtesters.com'
 
@@ -11,26 +11,30 @@ interface Props {
 }
 
 export async function generateStaticParams() {
-  const posts = await getPublishedPosts()
+  const posts = await listPublishedPosts()
   return posts.map((p) => ({ slug: p.slug }))
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
-  const post = await getPostBySlug(slug)
-  if (!post) return {}
+  const result = await getPublishedPostBySlugOrRedirect(slug)
+  if (!result) return {}
 
+  const { post } = result
   const title = post.seo_title || post.title
-  const description = post.seo_description || post.excerpt || ''
+  const description =
+    post.seo_description || post.excerpt || post.content.slice(0, 160).replace(/\n/g, ' ').trim()
+  const canonicalUrl = `${BASE}/blog/${post.slug}`
 
   return {
     title,
     description,
-    alternates: { canonical: `${BASE}/blog/${post.slug}` },
+    alternates: { canonical: canonicalUrl },
     openGraph: {
       title,
       description,
       type: 'article',
+      url: canonicalUrl,
       publishedTime: post.published_at ?? undefined,
       ...(post.cover_image_url ? { images: [post.cover_image_url] } : {}),
     },
@@ -42,7 +46,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 }
 
-function blogPostingSchema(post: NonNullable<Awaited<ReturnType<typeof getPostBySlug>>>) {
+function blogPostingSchema(post: { title: string; excerpt: string | null; published_at: string | null; updated_at: string; slug: string; cover_image_url: string | null }) {
   return {
     '@context': 'https://schema.org',
     '@type': 'BlogPosting',
@@ -62,8 +66,15 @@ function blogPostingSchema(post: NonNullable<Awaited<ReturnType<typeof getPostBy
 
 export default async function BlogPostPage({ params }: Props) {
   const { slug } = await params
-  const post = await getPostBySlug(slug)
-  if (!post) notFound()
+  const result = await getPublishedPostBySlugOrRedirect(slug)
+  if (!result) notFound()
+
+  const { post, matchedByRedirect } = result
+
+  // 308 permanent redirect from old slug to canonical slug
+  if (matchedByRedirect && slug !== post.slug) {
+    permanentRedirect(`/blog/${post.slug}`)
+  }
 
   const html = marked.parse(post.content) as string
 

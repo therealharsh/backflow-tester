@@ -1,6 +1,6 @@
 import type { MetadataRoute } from 'next'
 import { createServerClient } from '@/lib/supabase'
-import { getPublishedPosts } from '@/lib/blog'
+import { listPublishedPosts } from '@/lib/blog'
 import { STATE_NAMES, haversineDistance } from '@/lib/geo-utils'
 import { getAllCities } from '@/lib/city-data'
 
@@ -113,11 +113,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   urls.push({ url: `${BASE}/blog`, changeFrequency: 'weekly', priority: 0.6 })
 
   // Blog posts
-  const posts = await getPublishedPosts()
+  const posts = await listPublishedPosts()
   for (const post of posts) {
     urls.push({
       url: `${BASE}/blog/${post.slug}`,
-      changeFrequency: 'monthly',
+      changeFrequency: 'weekly',
       priority: 0.5,
       ...(post.updated_at ? { lastModified: new Date(post.updated_at) } : {}),
     })

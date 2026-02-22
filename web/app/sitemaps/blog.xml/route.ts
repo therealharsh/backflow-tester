@@ -17,7 +17,7 @@ export async function GET() {
   const entries: SitemapEntry[] = posts.map((p) => ({
     url: `${BASE}/blog/${p.slug}`,
     ...(p.lastUpdated ? { lastModified: p.lastUpdated } : {}),
-    changeFrequency: 'monthly' as const,
+    changeFrequency: 'weekly' as const,
     priority: 0.6,
   }))
 
