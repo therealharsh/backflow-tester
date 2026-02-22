@@ -161,10 +161,16 @@ const AUDIENCE_BADGES = [
 export default async function HomePage() {
   const supabase = createServerClient()
 
-  const { data: cities } = await supabase
-    .from('cities')
-    .select('city, city_slug, state_code, provider_count')
-    .order('provider_count', { ascending: false })
+  const [{ data: cities }, { count: providerCount }] = await Promise.all([
+    supabase
+      .from('cities')
+      .select('city, city_slug, state_code, provider_count')
+      .order('provider_count', { ascending: false }),
+    supabase
+      .from('providers')
+      .select('*', { count: 'exact', head: true }),
+  ])
+  const totalProviders = providerCount ?? 0
 
   // Aggregate provider counts by state
   const stateMap = new Map<string, number>()
@@ -174,7 +180,6 @@ export default async function HomePage() {
   const states = Array.from(stateMap.entries()).sort((a, b) =>
     (STATE_NAMES[a[0]] ?? a[0]).localeCompare(STATE_NAMES[b[0]] ?? b[0])
   )
-  const totalProviders = states.reduce((s, [, c]) => s + c, 0)
 
   // Top states by provider count
   const topStates = Array.from(stateMap.entries())

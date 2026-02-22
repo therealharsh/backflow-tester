@@ -8,10 +8,10 @@ import { getPublishedPosts } from './blog'
 import { STATE_NAMES } from './geo-utils'
 import type { BlogPost } from '@/types'
 
-/** Max URLs per child sitemap (well under the 50,000 limit). */
-export const SITEMAP_PAGE_SIZE = 5_000
+/** Max URLs per child sitemap — kept small for faster crawler processing. */
+export const SITEMAP_PAGE_SIZE = 1_000
 
-const BASE = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://findbackflowtesters.com'
+const BASE = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.findbackflowtesters.com'
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -83,41 +83,55 @@ export async function fetchAllCities(): Promise<CityInfo[]> {
   const supabase = createServerClient()
   const citySet = new Map<string, CityInfo>()
 
-  // Primary source: cities table
-  const { data: cities } = await supabase
-    .from('cities')
-    .select('city_slug, state_code, updated_at')
-    .order('provider_count', { ascending: false })
+  // Primary source: cities table (paginate to avoid Supabase default 1 000-row cap)
+  let from = 0
+  while (true) {
+    const { data: cities } = await supabase
+      .from('cities')
+      .select('city_slug, state_code, created_at')
+      .order('provider_count', { ascending: false })
+      .range(from, from + 999)
 
-  for (const c of cities ?? []) {
-    if (!c.city_slug || !c.state_code) continue
-    const key = `${c.state_code.toLowerCase()}/${c.city_slug}`
-    if (!citySet.has(key)) {
-      citySet.set(key, {
-        stateCode: c.state_code.toLowerCase(),
-        citySlug: c.city_slug,
-        lastUpdated: c.updated_at ?? null,
-      })
+    for (const c of cities ?? []) {
+      if (!c.city_slug || !c.state_code) continue
+      const key = `${c.state_code.toLowerCase()}/${c.city_slug}`
+      if (!citySet.has(key)) {
+        citySet.set(key, {
+          stateCode: c.state_code.toLowerCase(),
+          citySlug: c.city_slug,
+          lastUpdated: c.created_at ?? null,
+        })
+      }
     }
+
+    if (!cities || cities.length < 1000) break
+    from += 1000
   }
 
-  // Secondary: provider city/state combos not in cities table
-  const { data: providerCities } = await supabase
-    .from('providers')
-    .select('city_slug, state_code')
-    .not('city_slug', 'is', null)
-    .not('state_code', 'is', null)
+  // Secondary: provider city/state combos not in cities table (paginated)
+  from = 0
+  while (true) {
+    const { data: providerCities } = await supabase
+      .from('providers')
+      .select('city_slug, state_code')
+      .not('city_slug', 'is', null)
+      .not('state_code', 'is', null)
+      .range(from, from + 999)
 
-  for (const pc of providerCities ?? []) {
-    if (!pc.city_slug || !pc.state_code) continue
-    const key = `${pc.state_code.toLowerCase()}/${pc.city_slug}`
-    if (!citySet.has(key)) {
-      citySet.set(key, {
-        stateCode: pc.state_code.toLowerCase(),
-        citySlug: pc.city_slug,
-        lastUpdated: null,
-      })
+    for (const pc of providerCities ?? []) {
+      if (!pc.city_slug || !pc.state_code) continue
+      const key = `${pc.state_code.toLowerCase()}/${pc.city_slug}`
+      if (!citySet.has(key)) {
+        citySet.set(key, {
+          stateCode: pc.state_code.toLowerCase(),
+          citySlug: pc.city_slug,
+          lastUpdated: null,
+        })
+      }
     }
+
+    if (!providerCities || providerCities.length < 1000) break
+    from += 1000
   }
 
   return Array.from(citySet.values())
