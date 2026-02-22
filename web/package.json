@@ -8,7 +8,13 @@
     "start": "next start",
     "lint": "next lint",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "crawl:outscrape": "cd .. && make crawl-outscrape",
+    "crawl:clean": "cd .. && make crawl-clean",
+    "crawl:verify": "cd .. && make crawl-verify",
+    "crawl:upsert": "cd .. && make crawl-upsert",
+    "crawl:sitemap": "cd .. && make crawl-sitemap",
+    "crawl:all": "cd .. && make crawl-all"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

@@ -13,9 +13,11 @@ export function getBrowserClient(): SupabaseClient {
 }
 
 // Server client (for Server Components — uses anon key, reads public data)
+// cache: 'no-store' prevents Next.js from caching Supabase fetch responses
 export function createServerClient(): SupabaseClient {
   return createClient(supabaseUrl, supabaseAnonKey, {
     auth: { persistSession: false },
+    global: { fetch: (url, options = {}) => fetch(url, { ...options, cache: 'no-store' }) },
   })
 }
 
