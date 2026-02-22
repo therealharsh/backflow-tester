@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getStripe, PLAN_CONFIG, type PlanKey } from '@/lib/stripe'
+import { getStripe, TIER_CONFIG, tierFromPriceId, type PaidTier } from '@/lib/stripe'
 import { createServiceClient } from '@/lib/admin'
 import type Stripe from 'stripe'
 
@@ -9,6 +9,26 @@ export const dynamic = 'force-dynamic'
 function getPeriodEnd(sub: Stripe.Subscription): string | null {
   const ts = sub.items?.data?.[0]?.current_period_end
   return ts ? new Date(ts * 1000).toISOString() : null
+}
+
+/** Resolve tier from metadata or price ID. */
+function resolveTier(sub: Stripe.Subscription): PaidTier | null {
+  const metaTier = sub.metadata?.tier as PaidTier | undefined
+  if (metaTier && metaTier in TIER_CONFIG) return metaTier
+
+  // Fallback: lookup by price ID
+  const priceId = sub.items?.data?.[0]?.price?.id
+  if (priceId) return tierFromPriceId(priceId)
+
+  return null
+}
+
+/** Resolve provider_place_id from metadata (supports both old and new key). */
+function resolveProviderPlaceId(
+  metadata: Record<string, string> | null | undefined,
+): string | null {
+  if (!metadata) return null
+  return metadata.provider_place_id ?? metadata.provider_id ?? null
 }
 
 export async function POST(request: Request) {
@@ -32,39 +52,45 @@ export async function POST(request: Request) {
   }
 
   const supabase = createServiceClient()
+  const now = new Date().toISOString()
 
   try {
     switch (event.type) {
+      /* ── Checkout completed ─────────────────────────────── */
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session
         if (session.mode !== 'subscription') break
 
-        const providerId = session.metadata?.provider_id
-        const claimId = session.metadata?.claim_id
-        const plan = session.metadata?.plan as PlanKey | undefined
-
-        if (!providerId || !plan) {
-          console.error('[webhook] Missing metadata on checkout session')
+        const providerPlaceId = resolveProviderPlaceId(session.metadata as Record<string, string>)
+        if (!providerPlaceId) {
+          console.error('[webhook] Missing provider_place_id in checkout session metadata')
           break
         }
 
-        console.log('[webhook] Checkout completed', { providerId, plan })
-
-        // Upsert subscription record
         const subscriptionId = session.subscription as string
         const sub = await getStripe().subscriptions.retrieve(subscriptionId)
+        const tier = resolveTier(sub)
         const periodEnd = getPeriodEnd(sub)
 
+        if (!tier) {
+          console.error('[webhook] Could not resolve tier for subscription', subscriptionId)
+          break
+        }
+
+        console.log('[webhook] Checkout completed', { providerPlaceId, tier })
+
+        // Upsert into provider_subscriptions
         await supabase.from('provider_subscriptions').upsert(
           {
-            provider_id: providerId,
+            provider_place_id: providerPlaceId,
+            tier,
+            status: 'active',
             stripe_customer_id: session.customer as string,
             stripe_subscription_id: subscriptionId,
-            plan,
-            status: sub.status,
-            ...(periodEnd ? { current_period_end: periodEnd } : {}),
+            current_period_end: periodEnd,
+            updated_at: now,
           },
-          { onConflict: 'stripe_subscription_id' },
+          { onConflict: 'provider_place_id' },
         )
 
         // Activate premium on provider
@@ -72,56 +98,59 @@ export async function POST(request: Request) {
           .from('providers')
           .update({
             is_premium: true,
-            premium_plan: plan,
-            premium_rank: PLAN_CONFIG[plan].rank,
+            premium_plan: tier,
+            premium_rank: TIER_CONFIG[tier].rank,
             claimed: true,
             claim_status: 'approved',
           })
-          .eq('place_id', providerId)
-
-        // Mark claim as approved
-        if (claimId) {
-          await supabase
-            .from('provider_claims')
-            .update({ status: 'approved' })
-            .eq('id', claimId)
-        }
+          .eq('place_id', providerPlaceId)
 
         break
       }
 
+      /* ── Subscription updated ───────────────────────────── */
       case 'customer.subscription.updated': {
         const sub = event.data.object as Stripe.Subscription
-        const providerId = sub.metadata?.provider_id
-        const plan = sub.metadata?.plan as PlanKey | undefined
+        const providerPlaceId = resolveProviderPlaceId(sub.metadata as Record<string, string>)
+        if (!providerPlaceId) break
 
-        if (!providerId) break
-
+        const tier = resolveTier(sub)
         const periodEnd = getPeriodEnd(sub)
+
+        // Map Stripe status to our status
+        let dbStatus: string
+        if (['active', 'trialing'].includes(sub.status)) {
+          dbStatus = 'active'
+        } else if (sub.status === 'past_due') {
+          dbStatus = 'past_due'
+        } else if (['canceled', 'unpaid', 'incomplete_expired'].includes(sub.status)) {
+          dbStatus = 'canceled'
+        } else {
+          dbStatus = 'inactive'
+        }
 
         // Update subscription record
         await supabase
           .from('provider_subscriptions')
           .update({
-            status: sub.status,
+            status: dbStatus,
+            ...(tier ? { tier } : {}),
             ...(periodEnd ? { current_period_end: periodEnd } : {}),
-            ...(plan ? { plan } : {}),
+            updated_at: now,
           })
           .eq('stripe_subscription_id', sub.id)
 
-        // If active/trialing, keep premium. Otherwise, remove.
-        if (['active', 'trialing'].includes(sub.status)) {
-          if (plan) {
-            await supabase
-              .from('providers')
-              .update({
-                is_premium: true,
-                premium_plan: plan,
-                premium_rank: PLAN_CONFIG[plan].rank,
-              })
-              .eq('place_id', providerId)
-          }
-        } else {
+        // Update premium flags on provider
+        if (dbStatus === 'active' && tier) {
+          await supabase
+            .from('providers')
+            .update({
+              is_premium: true,
+              premium_plan: tier,
+              premium_rank: TIER_CONFIG[tier].rank,
+            })
+            .eq('place_id', providerPlaceId)
+        } else if (['canceled', 'past_due'].includes(dbStatus)) {
           await supabase
             .from('providers')
             .update({
@@ -129,27 +158,25 @@ export async function POST(request: Request) {
               premium_plan: null,
               premium_rank: 0,
             })
-            .eq('place_id', providerId)
+            .eq('place_id', providerPlaceId)
         }
 
         break
       }
 
+      /* ── Subscription deleted ───────────────────────────── */
       case 'customer.subscription.deleted': {
         const sub = event.data.object as Stripe.Subscription
-        const providerId = sub.metadata?.provider_id
+        const providerPlaceId = resolveProviderPlaceId(sub.metadata as Record<string, string>)
+        if (!providerPlaceId) break
 
-        if (!providerId) break
+        console.log('[webhook] Subscription canceled', { providerPlaceId })
 
-        console.log('[webhook] Subscription canceled', { providerId })
-
-        // Update subscription record
         await supabase
           .from('provider_subscriptions')
-          .update({ status: 'canceled' })
+          .update({ status: 'canceled', updated_at: now })
           .eq('stripe_subscription_id', sub.id)
 
-        // Remove premium
         await supabase
           .from('providers')
           .update({
@@ -157,13 +184,12 @@ export async function POST(request: Request) {
             premium_plan: null,
             premium_rank: 0,
           })
-          .eq('place_id', providerId)
+          .eq('place_id', providerPlaceId)
 
         break
       }
 
       default:
-        // Unhandled event type — ignore
         break
     }
   } catch (err) {

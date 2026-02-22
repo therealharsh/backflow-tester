@@ -403,6 +403,33 @@ export default async function SearchPage({ searchParams }: Props) {
     }
   }
 
+  // ── Batch-fetch subscription + owner data for promotion ranking ──────
+  let promotedSet = new Set<string>()
+  if (providers.length > 0) {
+    const placeIds = providers.map((p) => p.place_id)
+    const [{ data: subs }, { data: owners }] = await Promise.all([
+      supabase
+        .from('provider_subscriptions')
+        .select('provider_place_id')
+        .in('provider_place_id', placeIds)
+        .in('tier', ['premium', 'pro'])
+        .eq('status', 'active'),
+      supabase
+        .from('provider_owners')
+        .select('provider_place_id')
+        .in('provider_place_id', placeIds),
+    ])
+    const activePremiumPro = new Set((subs ?? []).map((s) => s.provider_place_id))
+    const ownerSet = new Set((owners ?? []).map((o) => o.provider_place_id))
+    for (const id of activePremiumPro) {
+      if (ownerSet.has(id)) promotedSet.add(id)
+    }
+  }
+
+  /** Provider is promoted if within 20 mi, active premium/pro tier, and owner verified */
+  const isPromoted = (p: ProviderWithDistance) =>
+    promotedSet.has(p.place_id) && (p.distance_miles ?? 999) <= 20
+
   // ── Location label for display ────────────────────────────────────────
   const locationLabel = label
     || (locationCity && locationStateCode
@@ -420,19 +447,20 @@ export default async function SearchPage({ searchParams }: Props) {
     if (tags) filtered = filtered.filter((p) => tags.every((t) => (p.service_tags ?? []).includes(t)))
   }
 
-  // Apply sort — premium listings always first, then user-chosen sort
+  // Apply sort — promoted first (premium/pro within 20 mi), then premium_rank, then user-chosen sort
+  const promo = (p: ProviderWithDistance) => isPromoted(p) ? 1 : 0
   if (sort === 'rating') {
-    filtered.sort((a, b) => (b.premium_rank ?? 0) - (a.premium_rank ?? 0) || (b.rating ?? 0) - (a.rating ?? 0) || b.reviews - a.reviews)
+    filtered.sort((a, b) => promo(b) - promo(a) || (b.premium_rank ?? 0) - (a.premium_rank ?? 0) || (b.rating ?? 0) - (a.rating ?? 0) || b.reviews - a.reviews)
   } else if (sort === 'score') {
-    filtered.sort((a, b) => (b.premium_rank ?? 0) - (a.premium_rank ?? 0) || (b.backflow_score ?? 0) - (a.backflow_score ?? 0) || b.reviews - a.reviews)
+    filtered.sort((a, b) => promo(b) - promo(a) || (b.premium_rank ?? 0) - (a.premium_rank ?? 0) || (b.backflow_score ?? 0) - (a.backflow_score ?? 0) || b.reviews - a.reviews)
   } else if (sort === 'reviews') {
-    filtered.sort((a, b) => (b.premium_rank ?? 0) - (a.premium_rank ?? 0) || b.reviews - a.reviews)
+    filtered.sort((a, b) => promo(b) - promo(a) || (b.premium_rank ?? 0) - (a.premium_rank ?? 0) || b.reviews - a.reviews)
   } else {
-    // Default (Nearest): premium first, then distance for proximity searches, reviews for text searches
+    // Default (Nearest): promoted first, then premium, then distance/reviews
     if (searchMode === 'proximity') {
-      filtered.sort((a, b) => (b.premium_rank ?? 0) - (a.premium_rank ?? 0) || (a.distance_miles ?? 999) - (b.distance_miles ?? 999))
+      filtered.sort((a, b) => promo(b) - promo(a) || (b.premium_rank ?? 0) - (a.premium_rank ?? 0) || (a.distance_miles ?? 999) - (b.distance_miles ?? 999))
     } else {
-      filtered.sort((a, b) => (b.premium_rank ?? 0) - (a.premium_rank ?? 0) || b.reviews - a.reviews)
+      filtered.sort((a, b) => promo(b) - promo(a) || (b.premium_rank ?? 0) - (a.premium_rank ?? 0) || b.reviews - a.reviews)
     }
   }
 

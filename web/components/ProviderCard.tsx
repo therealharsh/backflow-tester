@@ -3,6 +3,7 @@ import type { Provider } from '@/types'
 import { chooseBestImage, getInitials } from '@/lib/image-utils'
 import GetQuoteButton from './GetQuoteButton'
 import PremiumBadge from './PremiumBadge'
+import OwnerVerifiedBadge from './OwnerVerifiedBadge'
 
 interface Props {
   provider: Provider
@@ -88,12 +89,15 @@ export default function ProviderCard({ provider: p, distanceMiles }: Props) {
           </span>
         ) : null}
 
-        {/* Distance badge — top right */}
-        {distanceMiles != null && (
-          <span className="absolute top-2.5 right-2.5 text-[11px] font-bold text-white bg-blue-700/85 backdrop-blur-sm rounded-full px-2.5 py-1 shadow">
-            {formatDistance(distanceMiles)}
-          </span>
-        )}
+        {/* Top right badges */}
+        <div className="absolute top-2.5 right-2.5 flex flex-col items-end gap-1">
+          {p.claimed && <OwnerVerifiedBadge />}
+          {distanceMiles != null && (
+            <span className="text-[11px] font-bold text-white bg-blue-700/85 backdrop-blur-sm rounded-full px-2.5 py-1 shadow">
+              {formatDistance(distanceMiles)}
+            </span>
+          )}
+        </div>
       </Link>
 
       {/* Body */}

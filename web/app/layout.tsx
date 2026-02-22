@@ -94,9 +94,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 </ul>
               </div>
               <div>
-                <p className="text-white font-semibold mb-3 text-sm uppercase tracking-wide">Disclaimer</p>
-                <p className="text-sm text-gray-500 leading-relaxed">
-                  Provider data sourced from Google Maps. Always verify licensing with your local water authority before hiring.
+                <p className="text-white font-semibold mb-3 text-sm uppercase tracking-wide">For Providers</p>
+                <ul className="space-y-2 text-sm">
+                  <li><Link href="/claim" className="hover:text-white transition-colors">Claim Your Listing</Link></li>
+                  <li><Link href="/owner/login" className="hover:text-white transition-colors">Owner Login</Link></li>
+                </ul>
+                <p className="text-xs text-gray-600 mt-4 leading-relaxed">
+                  Provider data sourced from Google Maps. Always verify licensing with your local water authority.
                 </p>
               </div>
             </div>

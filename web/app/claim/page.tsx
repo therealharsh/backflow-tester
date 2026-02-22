@@ -60,8 +60,8 @@ export default function ClaimPage({
               2
             </span>
             <span>
-              <strong>Verify ownership</strong> &mdash; we&rsquo;ll send a
-              verification link to your business email.
+              <strong>Submit for review</strong> &mdash; choose your plan and
+              we&rsquo;ll verify within 2 business days. No charge until approved.
             </span>
           </li>
           <li className="flex gap-3">
@@ -69,8 +69,8 @@ export default function ClaimPage({
               3
             </span>
             <span>
-              <strong>Manage your profile</strong> &mdash; update your info,
-              respond to reviews, and upgrade to a premium listing.
+              <strong>Manage your profile</strong> &mdash; once approved, update
+              your info and upgrade to a premium listing.
             </span>
           </li>
         </ol>

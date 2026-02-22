@@ -4,10 +4,11 @@ import { notFound } from 'next/navigation'
 import { createServerClient } from '@/lib/supabase'
 import { STATE_NAMES } from '@/lib/geo-utils'
 import { parseImageUrls, isJunkImageUrl } from '@/lib/image-utils'
-import type { Provider, ProviderService, ProviderReview } from '@/types'
+import type { Provider, ProviderEffective, ProviderService, ProviderReview } from '@/types'
 import GetQuoteButton from '@/components/GetQuoteButton'
 import ClaimListingCTA from '@/components/ClaimListingCTA'
 import PremiumBadge from '@/components/PremiumBadge'
+import OwnerVerifiedBadge from '@/components/OwnerVerifiedBadge'
 import ProviderPageTracker from '@/components/ProviderPageTracker'
 
 interface Props {
@@ -103,14 +104,15 @@ function StarRating({ rating, size = 'md' }: { rating: number; size?: 'sm' | 'md
 export default async function ProviderPage({ params }: Props) {
   const supabase = createServerClient()
   const { data: provider } = await supabase
-    .from('providers')
+    .from('providers_effective')
     .select('*')
     .eq('provider_slug', params.slug)
     .single()
 
   if (!provider) notFound()
 
-  const p = provider as Provider
+  const p = provider as ProviderEffective
+  const ownerVerified = !!p.owner_user_id
 
   // Fetch services, reviews, and nearby providers in parallel
   const [servicesRes, reviewsRes, nearbyRes] = await Promise.all([
@@ -141,10 +143,15 @@ export default async function ProviderPage({ params }: Props) {
     .filter((n: any) => n.provider_slug !== p.provider_slug)
     .slice(0, 6)
 
+  // Use owner override images if available, otherwise fall back to scraped images
+  const overrideCover = p.effective_cover_image_url ?? null
+  const overrideGallery = (p.effective_gallery_image_urls ?? []).filter(Boolean)
   const allUrls = parseImageUrls(p.image_urls)
   const goodImages = allUrls.filter((u) => !isJunkImageUrl(u)).slice(0, 6)
-  const heroImage = goodImages[0] ?? null
-  const thumbs = goodImages.slice(1)
+  const heroImage = overrideCover ?? goodImages[0] ?? null
+  const thumbs = overrideGallery.length > 0
+    ? overrideGallery.slice(0, 5)
+    : goodImages.slice(1)
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://findbackflowtesters.com'
   const stateSlug = p.state_code.toLowerCase()
@@ -159,7 +166,7 @@ export default async function ProviderPage({ params }: Props) {
       { '@type': 'ListItem', position: 1, name: 'Home', item: siteUrl },
       { '@type': 'ListItem', position: 2, name: stateName, item: `${siteUrl}/${stateSlug}` },
       { '@type': 'ListItem', position: 3, name: p.city, item: `${siteUrl}/${stateSlug}/${p.city_slug ?? ''}` },
-      { '@type': 'ListItem', position: 4, name: p.name, item: pageUrl },
+      { '@type': 'ListItem', position: 4, name: p.effective_name, item: pageUrl },
     ],
   }
 
@@ -168,9 +175,9 @@ export default async function ProviderPage({ params }: Props) {
     '@context': 'https://schema.org',
     '@type': 'Plumber',
     '@id': pageUrl,
-    name: p.name,
-    ...(p.phone && { telephone: p.phone }),
-    ...(p.website && { url: p.website }),
+    name: p.effective_name,
+    ...(p.effective_phone && { telephone: p.effective_phone }),
+    ...(p.effective_website && { url: p.effective_website }),
     address: {
       '@type': 'PostalAddress',
       streetAddress: p.address ?? '',
@@ -216,7 +223,7 @@ export default async function ProviderPage({ params }: Props) {
       {/* Analytics */}
       <ProviderPageTracker
         providerSlug={p.provider_slug}
-        providerName={p.name}
+        providerName={p.effective_name}
         city={p.city}
         stateCode={p.state_code}
         isPremium={!!p.is_premium}
@@ -244,7 +251,7 @@ export default async function ProviderPage({ params }: Props) {
           {p.city}
         </Link>
         <span>/</span>
-        <span className="text-gray-900 font-medium truncate max-w-[200px]">{p.name}</span>
+        <span className="text-gray-900 font-medium truncate max-w-[200px]">{p.effective_name}</span>
       </nav>
 
       <div className="grid lg:grid-cols-3 gap-8 items-start">
@@ -257,7 +264,7 @@ export default async function ProviderPage({ params }: Props) {
               <div className="rounded-2xl overflow-hidden border border-gray-100 shadow-sm aspect-video bg-gray-50">
                 <img
                   src={heroImage}
-                  alt={`${p.name} — backflow testing service`}
+                  alt={`${p.effective_name} — backflow testing service`}
                   className="w-full h-full object-cover"
                   loading="eager"
                 />
@@ -268,7 +275,7 @@ export default async function ProviderPage({ params }: Props) {
                     <div key={i} className="shrink-0 w-24 h-18 rounded-lg overflow-hidden border border-gray-100 shadow-sm">
                       <img
                         src={url}
-                        alt={`${p.name} photo ${i + 2}`}
+                        alt={`${p.effective_name} photo ${i + 2}`}
                         className="w-full h-full object-cover"
                         loading="lazy"
                       />
@@ -281,7 +288,7 @@ export default async function ProviderPage({ params }: Props) {
             <div className="rounded-2xl overflow-hidden border border-gray-100 aspect-video bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center">
               <div className="text-center">
                 <div className="text-5xl font-bold text-blue-200 mb-1">
-                  {p.name.split(' ').slice(0, 2).map((w: string) => w[0]).join('').toUpperCase()}
+                  {p.effective_name.split(' ').slice(0, 2).map((w: string) => w[0]).join('').toUpperCase()}
                 </div>
                 <p className="text-sm text-blue-300">No photos available</p>
               </div>
@@ -291,15 +298,18 @@ export default async function ProviderPage({ params }: Props) {
           {/* Provider header */}
           <div>
             <div className="flex items-start justify-between flex-wrap gap-3 mb-2">
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 leading-tight">{p.name}</h1>
-              {p.tier === 'testing' && (
-                <span className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 text-sm font-semibold rounded-full border border-emerald-200">
-                  <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                  </svg>
-                  Backflow Testing Verified
-                </span>
-              )}
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 leading-tight">{p.effective_name}</h1>
+              <div className="flex items-center gap-2 shrink-0">
+                {ownerVerified && <OwnerVerifiedBadge size="md" />}
+                {p.tier === 'testing' && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 text-sm font-semibold rounded-full border border-emerald-200">
+                    <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                    Backflow Testing Verified
+                  </span>
+                )}
+              </div>
             </div>
             {(p.type || p.category) && (
               <p className="text-gray-500 text-sm">{p.type ?? p.category}</p>
@@ -367,6 +377,14 @@ export default async function ProviderPage({ params }: Props) {
             </div>
           ) : null}
 
+          {/* Owner description */}
+          {p.effective_description && (
+            <div className="bg-white rounded-2xl border border-gray-200 p-5">
+              <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-3">About</h2>
+              <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{p.effective_description}</p>
+            </div>
+          )}
+
           {/* Business details card */}
           <div className="bg-white rounded-2xl border border-gray-200 divide-y divide-gray-100">
             <div className="px-5 py-3">
@@ -381,27 +399,27 @@ export default async function ProviderPage({ params }: Props) {
                 <span className="text-gray-700">{p.address}</span>
               </div>
             )}
-            {p.phone && (
+            {p.effective_phone && (
               <div className="flex items-center gap-3 px-5 py-3 text-sm">
                 <svg className="w-4 h-4 text-gray-400 shrink-0" fill="currentColor" viewBox="0 0 20 20">
                   <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" />
                 </svg>
-                <a href={`tel:${p.phone}`} data-track="call_clicked" className="text-blue-600 hover:underline font-medium">{p.phone}</a>
+                <a href={`tel:${p.effective_phone}`} data-track="call_clicked" className="text-blue-600 hover:underline font-medium">{p.effective_phone}</a>
               </div>
             )}
-            {p.website && (
+            {p.effective_website && (
               <div className="flex items-center gap-3 px-5 py-3 text-sm">
                 <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
                 </svg>
                 <a
-                  href={p.website}
+                  href={p.effective_website}
                   target="_blank"
                   rel="noopener noreferrer"
                   data-track="website_clicked"
                   className="text-blue-600 hover:underline truncate"
                 >
-                  {p.website.replace(/^https?:\/\/(www\.)?/, '')}
+                  {p.effective_website.replace(/^https?:\/\/(www\.)?/, '')}
                 </a>
               </div>
             )}
@@ -448,7 +466,7 @@ export default async function ProviderPage({ params }: Props) {
                 )}
               </div>
               <iframe
-                title={`Map showing location of ${p.name}`}
+                title={`Map showing location of ${p.effective_name}`}
                 src={`https://www.openstreetmap.org/export/embed.html?bbox=${p.longitude - 0.008},${p.latitude - 0.005},${p.longitude + 0.008},${p.latitude + 0.005}&layer=mapnik&marker=${p.latitude},${p.longitude}`}
                 className="w-full h-64 border-0"
                 loading="lazy"
@@ -553,7 +571,7 @@ export default async function ProviderPage({ params }: Props) {
               Backflow Testing in {p.city}, {stateName}
             </h2>
             <p>
-              {p.name} provides professional backflow prevention testing and certification services in {p.city}, {stateName}.
+              {p.effective_name} provides professional backflow prevention testing and certification services in {p.city}, {stateName}.
               Annual backflow testing is required by most water utilities to protect public water supplies
               from contamination through cross-connection control compliance.
               {serviceTags.length > 0 && (
@@ -564,7 +582,7 @@ export default async function ProviderPage({ params }: Props) {
             <p>
               Whether you need a routine RPZ valve inspection, backflow prevention device testing,
               or a certified tester to file compliance reports with your local water authority,
-              {p.name} can help. Homeowners, HOAs, and property managers can request a free quote
+              {p.effective_name} can help. Homeowners, HOAs, and property managers can request a free quote
               using the form on this page.
             </p>
           </div>
@@ -658,7 +676,7 @@ export default async function ProviderPage({ params }: Props) {
                   <PremiumBadge plan={p.premium_plan} rating={p.rating} reviews={p.reviews} size="md" />
                 </div>
               )}
-              <p className="font-semibold text-gray-900 text-lg leading-tight">{p.name}</p>
+              <p className="font-semibold text-gray-900 text-lg leading-tight">{p.effective_name}</p>
               <p className="text-sm text-gray-500 mt-0.5">{p.city}, {p.state_code}</p>
             </div>
 
@@ -673,9 +691,9 @@ export default async function ProviderPage({ params }: Props) {
             <GetQuoteButton
               variant="sidebar"
               provider={{
-                name: p.name,
-                phone: p.phone,
-                website: p.website,
+                name: p.effective_name,
+                phone: p.effective_phone,
+                website: p.effective_website,
                 address: p.address,
                 city: p.city,
                 stateCode: p.state_code,
@@ -686,9 +704,9 @@ export default async function ProviderPage({ params }: Props) {
               }}
             />
 
-            {p.website && (
+            {p.effective_website && (
               <a
-                href={p.website}
+                href={p.effective_website}
                 target="_blank"
                 rel="noopener noreferrer"
                 data-track="website_clicked"
@@ -738,8 +756,9 @@ export default async function ProviderPage({ params }: Props) {
           {/* Claim CTA */}
           <ClaimListingCTA
             providerId={p.place_id}
-            providerName={p.name}
+            providerName={p.effective_name}
             claimed={p.claimed}
+            ownerVerified={ownerVerified}
           />
 
           <p className="text-xs text-gray-400 text-center px-2">

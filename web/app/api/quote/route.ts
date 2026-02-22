@@ -46,8 +46,11 @@ export async function POST(request: Request) {
     const p = data.provider
     const subject = `New Quote Lead: ${p.name} — ${p.city}, ${p.stateCode}`
 
-    const html = buildHtml(data, ip, userAgent)
-    const text = buildText(data, ip, userAgent)
+    // ── Look up Pro providers within 20 miles (for admin email) ─────────
+    const proProviders = await findProProvidersNearby(p.placeId, p.stateCode)
+
+    const html = buildHtml(data, ip, userAgent, proProviders)
+    const text = buildText(data, ip, userAgent, proProviders)
 
     const resend = new Resend(process.env.RESEND_API_KEY)
     await resend.emails.send({
@@ -95,6 +98,89 @@ export async function POST(request: Request) {
   }
 }
 
+// ── Pro provider lookup ──────────────────────────────────────────────────
+
+interface ProProvider {
+  name: string
+  city: string
+  state_code: string
+  provider_slug: string
+  place_id: string
+  isTargetProvider: boolean
+}
+
+async function findProProvidersNearby(
+  targetPlaceId: string,
+  stateCode: string,
+): Promise<ProProvider[]> {
+  try {
+    const supabase = createServerClient()
+
+    // Get target provider's coordinates (prefer service_lat/lng)
+    const { data: target } = await supabase
+      .from('providers')
+      .select('latitude, longitude, service_lat, service_lng')
+      .eq('place_id', targetPlaceId)
+      .single()
+
+    const centerLat = target?.service_lat ?? target?.latitude
+    const centerLng = target?.service_lng ?? target?.longitude
+
+    if (!centerLat || !centerLng) return []
+
+    // Find providers within 20 miles, same state
+    const { data: nearby } = await supabase.rpc('providers_near_point', {
+      lat: centerLat,
+      lon: centerLng,
+      radius_miles: 20,
+      max_results: 200,
+      state_filter: stateCode,
+    })
+
+    if (!nearby || nearby.length === 0) return []
+
+    const placeIds = nearby.map((n: any) => n.place_id as string)
+
+    // Check for pro tier + active subscription + owner verified
+    const [{ data: subs }, { data: owners }] = await Promise.all([
+      supabase
+        .from('provider_subscriptions')
+        .select('provider_place_id')
+        .in('provider_place_id', placeIds)
+        .eq('tier', 'pro')
+        .eq('status', 'active'),
+      supabase
+        .from('provider_owners')
+        .select('provider_place_id')
+        .in('provider_place_id', placeIds),
+    ])
+
+    const proSubSet = new Set((subs ?? []).map((s) => s.provider_place_id))
+    const ownerSet = new Set((owners ?? []).map((o) => o.provider_place_id))
+
+    const result: ProProvider[] = []
+    for (const n of nearby as any[]) {
+      if (proSubSet.has(n.place_id) && ownerSet.has(n.place_id)) {
+        result.push({
+          name: n.name,
+          city: n.city,
+          state_code: n.state_code,
+          provider_slug: n.provider_slug,
+          place_id: n.place_id,
+          isTargetProvider: n.place_id === targetPlaceId,
+        })
+      }
+    }
+
+    return result
+  } catch (err) {
+    console.error('[quote] Pro provider lookup failed (non-fatal):', err)
+    return []
+  }
+}
+
+// ── Email helpers ────────────────────────────────────────────────────────
+
 function esc(s: string) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
@@ -109,9 +195,38 @@ function linkRow(label: string, url: string | null | undefined, text?: string) {
   return `<tr><td style="padding:4px 12px 4px 0;color:#6b7280;white-space:nowrap">${label}</td><td style="padding:4px 0"><a href="${esc(url)}" style="color:#2563eb">${esc(text ?? url)}</a></td></tr>`
 }
 
-function buildHtml(data: QuoteRequest, ip: string, ua: string): string {
+function buildProHtml(proProviders: ProProvider[], siteUrl: string): string {
+  if (proProviders.length === 0) return ''
+
+  const rows = proProviders.map((pp) => {
+    const profileUrl = `${siteUrl}/providers/${pp.provider_slug}`
+    const highlight = pp.isTargetProvider
+      ? ' style="background:#fef3c7"'
+      : ''
+    const badge = pp.isTargetProvider
+      ? ' <span style="color:#d97706;font-weight:700;font-size:12px">&#9733; QUOTE TARGET</span>'
+      : ''
+    return `<tr${highlight}>
+      <td style="padding:6px 12px 6px 0;font-size:14px;color:#111827;font-weight:600">${esc(pp.name)}${badge}</td>
+      <td style="padding:6px 8px;font-size:14px;color:#6b7280">${esc(pp.city)}, ${esc(pp.state_code)}</td>
+      <td style="padding:6px 8px;font-size:14px"><a href="${esc(profileUrl)}" style="color:#2563eb">View profile</a></td>
+      <td style="padding:6px 0;font-size:12px;font-weight:700;color:#7c3aed">PRO</td>
+    </tr>`
+  }).join('\n    ')
+
+  return `
+  <div style="background:#f5f3ff;border:2px solid #8b5cf6;border-radius:12px;padding:20px;margin-bottom:24px">
+    <h2 style="margin:0 0 12px;font-size:16px;color:#7c3aed">&#128142; Pro Subscribers in Radius (20 miles)</h2>
+    <table style="font-size:14px;border-collapse:collapse;width:100%">
+    ${rows}
+    </table>
+  </div>`
+}
+
+function buildHtml(data: QuoteRequest, ip: string, ua: string, proProviders: ProProvider[]): string {
   const p = data.provider
   const fullName = [data.firstName, data.lastName].filter(Boolean).join(' ')
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://findbackflowtesters.com'
 
   return `
 <!DOCTYPE html>
@@ -120,6 +235,8 @@ function buildHtml(data: QuoteRequest, ip: string, ua: string): string {
     <h1 style="margin:0 0 4px;font-size:20px;color:#1d4ed8">New Quote Request</h1>
     <p style="margin:0;color:#6b7280;font-size:14px">${esc(p.name)} — ${esc(p.city)}, ${esc(p.stateCode)}</p>
   </div>
+
+  ${buildProHtml(proProviders, siteUrl)}
 
   <h2 style="font-size:14px;text-transform:uppercase;letter-spacing:0.05em;color:#6b7280;border-bottom:1px solid #e5e7eb;padding-bottom:8px">Customer</h2>
   <table style="font-size:14px;border-collapse:collapse;margin-bottom:24px">
@@ -155,13 +272,26 @@ function buildHtml(data: QuoteRequest, ip: string, ua: string): string {
 </body></html>`.trim()
 }
 
-function buildText(data: QuoteRequest, ip: string, ua: string): string {
+function buildText(data: QuoteRequest, ip: string, ua: string, proProviders: ProProvider[]): string {
   const p = data.provider
   const fullName = [data.firstName, data.lastName].filter(Boolean).join(' ')
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://findbackflowtesters.com'
+
+  const proSection: (string | null)[] = []
+  if (proProviders.length > 0) {
+    proSection.push(``)
+    proSection.push(`=== PRO SUBSCRIBERS IN RADIUS (20 MILES) ===`)
+    for (const pp of proProviders) {
+      const tag = pp.isTargetProvider ? ' [QUOTE TARGET]' : ''
+      proSection.push(`  - ${pp.name} — ${pp.city}, ${pp.state_code} (PRO)${tag}`)
+      proSection.push(`    ${siteUrl}/providers/${pp.provider_slug}`)
+    }
+  }
 
   return [
     `NEW QUOTE REQUEST`,
     `${p.name} — ${p.city}, ${p.stateCode}`,
+    ...proSection,
     ``,
     `CUSTOMER`,
     `Name: ${fullName}`,
