@@ -99,7 +99,7 @@ function DashboardInner() {
   async function handleLoad(token: string) {
     if (sessionId) {
       try {
-        await fetch('/api/owner/verify-checkout', {
+        const verifyRes = await fetch('/api/owner/verify-checkout', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -107,8 +107,14 @@ function DashboardInner() {
           },
           body: JSON.stringify({ sessionId }),
         })
-      } catch {
-        // Non-fatal — webhook may have already handled it
+        const verifyData = await verifyRes.json()
+        if (!verifyRes.ok) {
+          console.error('[dashboard] verify-checkout failed:', verifyRes.status, verifyData)
+        } else {
+          console.log('[dashboard] verify-checkout success:', verifyData)
+        }
+      } catch (err) {
+        console.error('[dashboard] verify-checkout network error:', err)
       }
     }
     await loadDashboard(token)
