@@ -79,22 +79,49 @@ export async function POST(request: Request) {
 
         console.log('[webhook] Checkout completed', { providerPlaceId, tier })
 
-        // Upsert into provider_subscriptions
-        await supabase.from('provider_subscriptions').upsert(
-          {
-            provider_place_id: providerPlaceId,
-            tier,
-            status: 'active',
-            stripe_customer_id: session.customer as string,
-            stripe_subscription_id: subscriptionId,
-            current_period_end: periodEnd,
-            updated_at: now,
-          },
-          { onConflict: 'provider_place_id' },
-        )
+        // Use explicit UPDATE/INSERT instead of upsert (avoids PgBouncer issues)
+        const { data: existingSub } = await supabase
+          .from('provider_subscriptions')
+          .select('id')
+          .eq('provider_place_id', providerPlaceId)
+          .single()
+
+        if (existingSub) {
+          const { error: updateSubErr } = await supabase
+            .from('provider_subscriptions')
+            .update({
+              tier,
+              status: 'active',
+              stripe_customer_id: session.customer as string,
+              stripe_subscription_id: subscriptionId,
+              current_period_end: periodEnd,
+              updated_at: now,
+            })
+            .eq('provider_place_id', providerPlaceId)
+
+          if (updateSubErr) {
+            console.error('[webhook] Subscription UPDATE failed:', updateSubErr)
+          }
+        } else {
+          const { error: insertErr } = await supabase
+            .from('provider_subscriptions')
+            .insert({
+              provider_place_id: providerPlaceId,
+              tier,
+              status: 'active',
+              stripe_customer_id: session.customer as string,
+              stripe_subscription_id: subscriptionId,
+              current_period_end: periodEnd,
+              updated_at: now,
+            })
+
+          if (insertErr) {
+            console.error('[webhook] Subscription INSERT failed:', insertErr)
+          }
+        }
 
         // Activate premium on provider
-        await supabase
+        const { error: providerErr } = await supabase
           .from('providers')
           .update({
             is_premium: true,
@@ -104,6 +131,10 @@ export async function POST(request: Request) {
             claim_status: 'approved',
           })
           .eq('place_id', providerPlaceId)
+
+        if (providerErr) {
+          console.error('[webhook] Provider update failed:', providerErr)
+        }
 
         break
       }

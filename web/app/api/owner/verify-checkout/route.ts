@@ -121,23 +121,73 @@ export async function POST(request: Request) {
 
     const now = new Date().toISOString()
 
-    // Upsert subscription
-    const { error: upsertError } = await supabase.from('provider_subscriptions').upsert(
-      {
-        provider_place_id: providerPlaceId,
-        tier,
-        status: 'active',
-        stripe_customer_id: session.customer as string,
-        stripe_subscription_id: subscriptionId,
-        current_period_end: periodEnd,
-        updated_at: now,
-      },
-      { onConflict: 'provider_place_id' },
-    )
+    // Use explicit UPDATE then INSERT to avoid upsert issues with connection pooling
+    // First check if a row exists
+    const { data: existingRow } = await supabase
+      .from('provider_subscriptions')
+      .select('id')
+      .eq('provider_place_id', providerPlaceId)
+      .single()
 
-    if (upsertError) {
-      console.error('[verify-checkout] Upsert failed:', upsertError)
-      return NextResponse.json({ error: 'Failed to sync subscription', detail: upsertError.message }, { status: 500 })
+    if (existingRow) {
+      // UPDATE existing row
+      const { error: updateSubError } = await supabase
+        .from('provider_subscriptions')
+        .update({
+          tier,
+          status: 'active',
+          stripe_customer_id: session.customer as string,
+          stripe_subscription_id: subscriptionId,
+          current_period_end: periodEnd,
+          updated_at: now,
+        })
+        .eq('provider_place_id', providerPlaceId)
+
+      if (updateSubError) {
+        console.error('[verify-checkout] Subscription UPDATE failed:', updateSubError)
+        return NextResponse.json({ error: 'Failed to update subscription', detail: updateSubError.message }, { status: 500 })
+      }
+      console.log('[verify-checkout] Updated existing subscription row')
+    } else {
+      // INSERT new row
+      const { error: insertError } = await supabase
+        .from('provider_subscriptions')
+        .insert({
+          provider_place_id: providerPlaceId,
+          tier,
+          status: 'active',
+          stripe_customer_id: session.customer as string,
+          stripe_subscription_id: subscriptionId,
+          current_period_end: periodEnd,
+          updated_at: now,
+        })
+
+      if (insertError) {
+        console.error('[verify-checkout] Subscription INSERT failed:', insertError)
+        return NextResponse.json({ error: 'Failed to insert subscription', detail: insertError.message }, { status: 500 })
+      }
+      console.log('[verify-checkout] Inserted new subscription row')
+    }
+
+    // Verify the write actually persisted
+    const { data: verification } = await supabase
+      .from('provider_subscriptions')
+      .select('tier, status, stripe_subscription_id')
+      .eq('provider_place_id', providerPlaceId)
+      .single()
+
+    console.log('[verify-checkout] Post-write verification:', verification)
+
+    if (verification?.tier !== tier) {
+      console.error('[verify-checkout] WRITE DID NOT PERSIST!', {
+        expected: tier,
+        got: verification?.tier,
+      })
+      return NextResponse.json({
+        error: 'Subscription write did not persist',
+        expected: tier,
+        got: verification?.tier,
+      }, { status: 500 })
     }
 
     // Activate premium on provider
