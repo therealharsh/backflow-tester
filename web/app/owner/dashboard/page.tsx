@@ -473,13 +473,13 @@ function EditForm({
   accessToken: string
 }) {
   const [form, setForm] = useState({
-    name: overrides?.name ?? '',
-    phone: overrides?.phone ?? '',
-    email: overrides?.email ?? '',
-    website: overrides?.website ?? '',
+    name: overrides?.name || p.name || '',
+    phone: overrides?.phone || p.phone || '',
+    email: overrides?.email || p.claim_email || '',
+    website: overrides?.website || p.website || '',
     description: overrides?.description ?? '',
     coverImageUrl: overrides?.cover_image_url ?? '',
-    galleryImageUrls: overrides?.gallery_image_urls ?? [],
+    galleryImageUrls: overrides?.gallery_image_urls?.length ? overrides.gallery_image_urls : (p.image_urls ?? []),
     serviceLat: p.service_lat ?? p.latitude ?? null,
     serviceLng: p.service_lng ?? p.longitude ?? null,
   })
@@ -582,7 +582,7 @@ function EditForm({
 
       <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-5">
         {/* Name */}
-        <Field label="Business Name" hint={`Base: ${p.name}`}>
+        <Field label="Business Name">
           <input
             type="text"
             value={form.name}
@@ -592,28 +592,28 @@ function EditForm({
           />
         </Field>
 
-        <div className="grid sm:grid-cols-2 gap-4">
-          <Field label="Phone" hint={p.phone ? `Base: ${p.phone}` : undefined}>
+        <div className="grid sm:grid-cols-2 gap-4 items-end">
+          <Field label="Phone">
             <input
               type="tel"
               value={form.phone}
               onChange={(e) => update('phone', e.target.value)}
-              placeholder={p.phone ?? '(555) 123-4567'}
+              placeholder="(555) 123-4567"
               className="input-field"
             />
           </Field>
-          <Field label="Email" hint={p.claim_email ? `Base: ${p.claim_email}` : undefined}>
+          <Field label="Email">
             <input
               type="email"
               value={form.email}
               onChange={(e) => update('email', e.target.value)}
-              placeholder={p.claim_email ?? 'you@business.com'}
+              placeholder="you@business.com"
               className="input-field"
             />
           </Field>
         </div>
 
-        <Field label="Website" hint={p.website ? `Base: ${p.website}` : undefined}>
+        <Field label="Website">
           <input
             type="url"
             value={form.website}
@@ -701,7 +701,7 @@ function EditForm({
         </Field>
 
         {/* Service area center */}
-        <div className="grid sm:grid-cols-2 gap-4">
+        <div className="grid sm:grid-cols-2 gap-4 items-end">
           <Field label="Service Area Latitude" hint="Center of your service radius">
             <input
               type="number"
@@ -712,7 +712,7 @@ function EditForm({
               className="input-field"
             />
           </Field>
-          <Field label="Service Area Longitude">
+          <Field label="Service Area Longitude" hint="Center of your service radius">
             <input
               type="number"
               step="any"
