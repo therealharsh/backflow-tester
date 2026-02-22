@@ -16,15 +16,15 @@ interface SearchResult {
   claimed: boolean
 }
 
-export default function ClaimClient() {
+export default function ClaimClient({ initialQuery = '' }: { initialQuery?: string }) {
   return (
     <Suspense fallback={null}>
-      <ClaimClientInner />
+      <ClaimClientInner initialQuery={initialQuery} />
     </Suspense>
   )
 }
 
-function ClaimClientInner() {
+function ClaimClientInner({ initialQuery }: { initialQuery: string }) {
   const searchParams = useSearchParams()
   const initialTab = searchParams.get('tab') === 'register' ? 'register' : 'search'
   const [tab, setTab] = useState<'search' | 'register'>(initialTab)
@@ -55,15 +55,15 @@ function ClaimClientInner() {
         </button>
       </div>
 
-      {tab === 'search' ? <SearchTab onSwitchToRegister={() => setTab('register')} /> : <RegisterTab />}
+      {tab === 'search' ? <SearchTab initialQuery={initialQuery} onSwitchToRegister={() => setTab('register')} /> : <RegisterTab />}
     </div>
   )
 }
 
 /* ── Search Tab ────────────────────────────────────────────────── */
 
-function SearchTab({ onSwitchToRegister }: { onSwitchToRegister: () => void }) {
-  const [query, setQuery] = useState('')
+function SearchTab({ initialQuery, onSwitchToRegister }: { initialQuery: string; onSwitchToRegister: () => void }) {
+  const [query, setQuery] = useState(initialQuery)
   const [results, setResults] = useState<SearchResult[]>([])
   const [searched, setSearched] = useState(false)
   const [loading, setLoading] = useState(false)

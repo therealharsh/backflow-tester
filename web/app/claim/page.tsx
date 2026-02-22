@@ -19,7 +19,13 @@ export const metadata: Metadata = {
   },
 }
 
-export default function ClaimPage() {
+export default function ClaimPage({
+  searchParams,
+}: {
+  searchParams: { q?: string; tab?: string; provider?: string }
+}) {
+  const initialQuery = searchParams.q ?? ''
+
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-6 py-16">
       {/* SSR shell — always visible, even without JS */}
@@ -109,7 +115,7 @@ export default function ClaimPage() {
       </noscript>
 
       {/* Interactive client component — progressive enhancement */}
-      <ClaimClient />
+      <ClaimClient initialQuery={initialQuery} />
     </div>
   )
 }
