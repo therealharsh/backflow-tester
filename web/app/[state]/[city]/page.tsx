@@ -176,7 +176,7 @@ function buildLocationIntro(
 
 // ── Metadata ─────────────────────────────────────────────────────────────
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
+export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
   const stateCode = params.state.toUpperCase()
   const stateName = STATE_NAMES[stateCode]
   if (!stateName) return {}
@@ -223,12 +223,18 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     shouldIndex = (data?.length ?? 0) >= 3
   }
 
+  // Page-aware canonical: page 1 (or missing) → clean URL, page >= 2 → include ?page=N
+  const pageParam = parseInt(sp(searchParams.page) || '1', 10)
+  const pageNum = Number.isFinite(pageParam) && pageParam >= 2 ? pageParam : null
+  const baseCanonical = `${siteUrl}/${params.state}/${params.city}`
+  const canonical = pageNum ? `${baseCanonical}?page=${pageNum}` : baseCanonical
+
   return {
     title: `Backflow Testers in ${cityName}, ${stateName} | Find Certified Backflow Testers Near You`,
     description:
       `Find certified backflow testers in ${cityName}, ${stateName}. Compare ratings, services, and contact licensed professionals near you for RPZ inspection and annual backflow testing.`,
     alternates: {
-      canonical: `${siteUrl}/${params.state}/${params.city}`,
+      canonical,
     },
     openGraph: {
       title: `Backflow Testers in ${cityName}, ${stateName}`,
@@ -291,7 +297,28 @@ export default async function CityPage({ params, searchParams }: Props) {
   const minReviews = sp(searchParams.min_reviews)
   const testing    = sp(searchParams.testing) === '1'
   const sort       = sp(searchParams.sort)
-  const page       = Math.max(1, parseInt(sp(searchParams.page) || '1', 10))
+  const rawPage    = sp(searchParams.page)
+
+  // Validate page param: NaN / < 1 → redirect to clean URL; explicit "1" → redirect to clean URL
+  const basePath = `/${params.state}/${params.city}`
+  const parsedPage = parseInt(rawPage || '1', 10)
+  if (rawPage && (isNaN(parsedPage) || parsedPage < 1)) {
+    const clean = new URLSearchParams()
+    for (const [k, v] of Object.entries(searchParams)) {
+      if (k !== 'page' && typeof v === 'string') clean.set(k, v)
+    }
+    const qs = clean.toString()
+    redirect(qs ? `${basePath}?${qs}` : basePath)
+  }
+  if (rawPage === '1') {
+    const clean = new URLSearchParams()
+    for (const [k, v] of Object.entries(searchParams)) {
+      if (k !== 'page' && typeof v === 'string') clean.set(k, v)
+    }
+    const qs = clean.toString()
+    redirect(qs ? `${basePath}?${qs}` : basePath)
+  }
+  const page = Math.max(1, parsedPage)
 
   // Service filter params
   const activeServices: string[] = []
@@ -473,10 +500,20 @@ export default async function CityPage({ params, searchParams }: Props) {
     filtered.sort((a, b) => (b.premium_rank ?? 0) - (a.premium_rank ?? 0) || a.distance_miles - b.distance_miles)
   }
 
-  // ── Paginate ────────────────────────────────────────────────────────────
-  const total = filtered.length
+  // ── Paginate (server-side slice) ─────────────────────────────────────
+  const total      = filtered.length
+  const totalPages = Math.ceil(total / PER_PAGE)
+
+  // 404 for page numbers beyond the last valid page
+  if (totalPages > 0 && page > totalPages) notFound()
+
   const providers = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE)
-  const hasMore = page * PER_PAGE < total
+
+  // Build a clean searchParams record (without `page`) for Pagination link building
+  const filterParams: Record<string, string> = {}
+  for (const [k, v] of Object.entries(searchParams)) {
+    if (k !== 'page' && typeof v === 'string' && v) filterParams[k] = v
+  }
 
   // ── Structured data ───────────────────────────────────────────────────
   const webPageSchema = {
@@ -575,9 +612,16 @@ export default async function CityPage({ params, searchParams }: Props) {
       )}
 
       {/* Pagination */}
-      {total > PER_PAGE && (
+      {totalPages > 1 && (
         <div className="mt-8">
-          <Pagination page={page} hasMore={hasMore} total={total} perPage={PER_PAGE} />
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            total={total}
+            perPage={PER_PAGE}
+            basePath={basePath}
+            searchParams={filterParams}
+          />
         </div>
       )}
 
