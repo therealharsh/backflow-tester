@@ -76,6 +76,7 @@ function DashboardInner() {
   const [activeTab, setActiveTab] = useState<'overview' | 'edit' | 'plan'>('overview')
   const [signingOut, setSigningOut] = useState(false)
   const [verifyDebug, setVerifyDebug] = useState<string | null>(null)
+  const [verifiedTier, setVerifiedTier] = useState<string | null>(null)
 
   useEffect(() => {
     const supabase = getBrowserClient()
@@ -115,6 +116,7 @@ function DashboardInner() {
         } else {
           console.log('[dashboard] verify-checkout success:', verifyData)
           setVerifyDebug(`Verify OK: ${JSON.stringify(verifyData)}`)
+          if (verifyData.tier) setVerifiedTier(verifyData.tier)
         }
       } catch (err) {
         console.error('[dashboard] verify-checkout network error:', err)
@@ -125,8 +127,9 @@ function DashboardInner() {
 
   async function loadDashboard(token: string) {
     try {
-      const res = await fetch('/api/owner/dashboard', {
+      const res = await fetch(`/api/owner/dashboard?_t=${Date.now()}`, {
         headers: { Authorization: `Bearer ${token}` },
+        cache: 'no-store',
       })
       if (res.status === 401) { setNoAuth(true); return }
       if (res.status === 404) { setError('No owned listing found. Complete onboarding first.'); return }
@@ -152,7 +155,11 @@ function DashboardInner() {
   if (error) return <Shell><ErrorState message={error} /></Shell>
   if (!data) return <Shell><ErrorState message="No data" /></Shell>
 
-  const { provider: p, subscription: sub, overrides, ownership } = data
+  const { provider: p, overrides, ownership } = data
+  // If verify-checkout confirmed a tier but the DB read is stale, use the verified tier
+  const sub = verifiedTier
+    ? { ...data.subscription, tier: verifiedTier as DashboardData['subscription']['tier'], status: 'active' as const }
+    : data.subscription
   const canEdit = ['starter', 'premium', 'pro'].includes(sub.tier) && sub.status === 'active'
   const tierInfo = TIER_LABELS[sub.tier] ?? TIER_LABELS.free
   const isFree = sub.tier === 'free'

@@ -65,12 +65,14 @@ export async function GET(request: Request) {
     console.log('[owner/dashboard] placeId:', placeId)
     console.log('[owner/dashboard] subscription query:', { data: subRes.data, error: subRes.error?.message })
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       provider: providerRes.data,
       subscription: subRes.data ?? { tier: 'free', status: 'inactive' },
       overrides: overridesRes.data ?? null,
       ownership,
     })
+    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate')
+    return response
   } catch (err) {
     console.error('[owner/dashboard] Error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
