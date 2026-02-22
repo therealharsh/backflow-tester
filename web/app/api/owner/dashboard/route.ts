@@ -47,7 +47,7 @@ export async function GET(request: Request) {
     const [providerRes, subRes, overridesRes] = await Promise.all([
       supabase
         .from('providers')
-        .select('place_id, name, phone, website, address, city, state_code, provider_slug, latitude, longitude, service_lat, service_lng, claim_email, image_urls, rating, reviews')
+        .select('place_id, name, phone, website, address, city, state_code, provider_slug, latitude, longitude, service_lat, service_lng, claim_email, image_urls, rating, reviews, is_premium, premium_plan')
         .eq('place_id', placeId)
         .single(),
       supabase
@@ -62,12 +62,35 @@ export async function GET(request: Request) {
         .single(),
     ])
 
+    // Build subscription — use provider_subscriptions if available,
+    // but fall back to the providers table's premium_plan (which has no RLS
+    // and is more reliably written).
+    let subscription = subRes.data ?? { tier: 'free' as string, status: 'inactive', stripe_subscription_id: null, current_period_end: null }
+
+    const provider = providerRes.data
+    if (
+      provider &&
+      provider.is_premium &&
+      provider.premium_plan &&
+      subscription.tier === 'free'
+    ) {
+      // The providers table says premium but provider_subscriptions says free —
+      // trust the providers table (no RLS, writes always persist)
+      console.log('[owner/dashboard] Overriding stale subscription with providers.premium_plan:', provider.premium_plan)
+      subscription = {
+        ...subscription,
+        tier: provider.premium_plan,
+        status: 'active',
+      }
+    }
+
     console.log('[owner/dashboard] placeId:', placeId)
-    console.log('[owner/dashboard] subscription query:', { data: subRes.data, error: subRes.error?.message })
+    console.log('[owner/dashboard] subscription:', subscription)
+    console.log('[owner/dashboard] provider.is_premium:', provider?.is_premium, 'provider.premium_plan:', provider?.premium_plan)
 
     const response = NextResponse.json({
-      provider: providerRes.data,
-      subscription: subRes.data ?? { tier: 'free', status: 'inactive' },
+      provider,
+      subscription,
       overrides: overridesRes.data ?? null,
       ownership,
     })

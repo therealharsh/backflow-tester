@@ -75,7 +75,6 @@ function DashboardInner() {
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'overview' | 'edit' | 'plan'>('overview')
   const [signingOut, setSigningOut] = useState(false)
-  const [verifyDebug, setVerifyDebug] = useState<string | null>(null)
   const [verifiedTier, setVerifiedTier] = useState<string | null>(null)
 
   useEffect(() => {
@@ -112,10 +111,8 @@ function DashboardInner() {
         const verifyData = await verifyRes.json()
         if (!verifyRes.ok) {
           console.error('[dashboard] verify-checkout failed:', verifyRes.status, verifyData)
-          setVerifyDebug(`Verify failed (${verifyRes.status}): ${JSON.stringify(verifyData)}`)
         } else {
           console.log('[dashboard] verify-checkout success:', verifyData)
-          setVerifyDebug(`Verify OK: ${JSON.stringify(verifyData)}`)
           if (verifyData.tier) setVerifiedTier(verifyData.tier)
         }
       } catch (err) {
@@ -192,15 +189,6 @@ function DashboardInner() {
             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
           </svg>
           Plan upgraded successfully! Your premium features are now active.
-        </div>
-      )}
-
-      {/* Debug info — remove after fixing */}
-      {sessionId && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-3 mb-6 text-xs text-yellow-900 font-mono space-y-1">
-          <p><strong>DEBUG verify-checkout:</strong> {verifyDebug ?? 'pending...'}</p>
-          <p><strong>DEBUG subscription from API:</strong> {JSON.stringify(sub)}</p>
-          <p><strong>DEBUG canEdit:</strong> {String(canEdit)} | <strong>isFree:</strong> {String(isFree)}</p>
         </div>
       )}
 
