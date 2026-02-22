@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { createServerClient, PER_PAGE } from '@/lib/supabase'
+import { createServerClient, PER_PAGE, PER_PAGE_OPTIONS } from '@/lib/supabase'
 import ProviderCard from '@/components/ProviderCard'
 import ListingTracker from '@/components/ListingTracker'
 import Filters from '@/components/Filters'
@@ -179,6 +179,10 @@ export default async function SearchPage({ searchParams }: Props) {
   const rawPage    = sp(searchParams.page)
   const parsedPage = parseInt(rawPage || '1', 10)
   const page       = (!rawPage || isNaN(parsedPage) || parsedPage < 1) ? 1 : parsedPage
+
+  // ── Parse per_page param: display value (12/25/50) → actual slice count (12/24/48)
+  const rawPerPage = parseInt(sp(searchParams.per_page) || String(PER_PAGE), 10)
+  const perPage = rawPerPage in PER_PAGE_OPTIONS ? PER_PAGE_OPTIONS[rawPerPage] : PER_PAGE
 
   // ── Variables we'll populate ──────────────────────────────────────────
   let providers: ProviderWithDistance[] = []
@@ -434,8 +438,8 @@ export default async function SearchPage({ searchParams }: Props) {
 
   // ── Paginate (server-side slice) ──────────────────────────────────────
   const total      = filtered.length
-  const totalPages = Math.ceil(total / PER_PAGE)
-  const pageProviders = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE)
+  const totalPages = Math.ceil(total / perPage)
+  const pageProviders = filtered.slice((page - 1) * perPage, page * perPage)
 
   // Build search params for Pagination links (preserve all query/filter params, exclude page)
   const paginationParams: Record<string, string> = {}
@@ -551,6 +555,7 @@ export default async function SearchPage({ searchParams }: Props) {
           testing={testingOnly}
           sort={sort}
           activeServices={activeServices}
+          perPage={rawPerPage in PER_PAGE_OPTIONS ? rawPerPage : PER_PAGE}
         />
       )}
 
@@ -579,7 +584,7 @@ export default async function SearchPage({ searchParams }: Props) {
               key={p.place_id}
               providerSlug={p.provider_slug}
               providerName={p.name}
-              position={(page - 1) * PER_PAGE + i}
+              position={(page - 1) * perPage + i}
               isPremium={!!p.is_premium}
               pageType="search"
             >
@@ -599,7 +604,7 @@ export default async function SearchPage({ searchParams }: Props) {
             page={page}
             totalPages={totalPages}
             total={total}
-            perPage={PER_PAGE}
+            perPage={perPage}
             basePath="/search"
             searchParams={paginationParams}
           />

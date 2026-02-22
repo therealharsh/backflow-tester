@@ -21,4 +21,7 @@ export function createServerClient(): SupabaseClient {
   })
 }
 
-export const PER_PAGE = 24
+export const PER_PAGE = 50
+
+/** Display label → actual slice count (multiples of 3 for the grid) */
+export const PER_PAGE_OPTIONS: Record<number, number> = { 12: 12, 25: 24, 50: 48 }

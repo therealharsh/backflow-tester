@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter, usePathname } from 'next/navigation'
+import { PER_PAGE, PER_PAGE_OPTIONS } from '@/lib/supabase'
 
 const SERVICE_CHIPS = [
   { key: 'svc_rpz', label: 'RPZ Testing' },
@@ -9,15 +10,18 @@ const SERVICE_CHIPS = [
   { key: 'svc_cc', label: 'Cross-Connection' },
 ] as const
 
+const PER_PAGE_DISPLAY = Object.keys(PER_PAGE_OPTIONS).map(Number)
+
 interface Props {
   minRating: string
   minReviews: string
   testing: boolean
   sort: string
   activeServices: string[]
+  perPage: number
 }
 
-export default function Filters({ minRating, minReviews, testing, sort, activeServices }: Props) {
+export default function Filters({ minRating, minReviews, testing, sort, activeServices, perPage }: Props) {
   const router   = useRouter()
   const pathname = usePathname()
 
@@ -43,7 +47,7 @@ export default function Filters({ minRating, minReviews, testing, sort, activeSe
     router.push(`${pathname}?${params.toString()}`)
   }
 
-  const hasFilters = minRating || minReviews || testing || sort || activeServices.length > 0
+  const hasFilters = minRating || minReviews || testing || sort || activeServices.length > 0 || perPage !== PER_PAGE
 
   return (
     <div className="space-y-3">
@@ -104,6 +108,25 @@ export default function Filters({ minRating, minReviews, testing, sort, activeSe
           </select>
         </div>
 
+        {/* Results per page */}
+        <div className="flex items-center gap-2">
+          <label htmlFor="per_page" className="text-sm font-medium text-gray-700 whitespace-nowrap">
+            Per page
+          </label>
+          <select
+            id="per_page"
+            value={perPage}
+            onChange={(e) => update('per_page', Number(e.target.value) === PER_PAGE ? null : e.target.value)}
+            className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+          >
+            {PER_PAGE_DISPLAY.map((n) => (
+              <option key={n} value={n}>{n}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="w-px h-5 bg-gray-200 hidden sm:block" />
+
         {/* Testing toggle */}
         <label className="flex items-center gap-2 cursor-pointer select-none">
           <input
@@ -126,6 +149,7 @@ export default function Filters({ minRating, minReviews, testing, sort, activeSe
               params.delete('min_rating')
               params.delete('min_reviews')
               params.delete('testing')
+              params.delete('per_page')
               params.delete('page')
               for (const c of SERVICE_CHIPS) params.delete(c.key)
               const qs = params.toString()

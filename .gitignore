@@ -42,3 +42,4 @@ data/services_raw/
 *.log
 *.csv.bak
 test.csv
+docs/

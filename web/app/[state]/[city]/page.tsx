@@ -3,7 +3,7 @@ export const revalidate = 3600 // refresh from DB every hour
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
-import { createServerClient, PER_PAGE } from '@/lib/supabase'
+import { createServerClient, PER_PAGE, PER_PAGE_OPTIONS } from '@/lib/supabase'
 import { STATE_NAMES } from '@/lib/geo-utils'
 import { geocodeCity } from '@/lib/google-places'
 import { getCityBySlug, getNearbyCities, getAllCities, hashString } from '@/lib/city-data'
@@ -13,6 +13,7 @@ import ListingTracker from '@/components/ListingTracker'
 import Filters from '@/components/Filters'
 import Pagination from '@/components/Pagination'
 import FAQAccordion from '@/components/FAQAccordion'
+import CityHelpfulResources from '@/components/CityHelpfulResources'
 import type { Provider } from '@/types'
 import {
   generateFAQSchema,
@@ -320,6 +321,10 @@ export default async function CityPage({ params, searchParams }: Props) {
   }
   const page = Math.max(1, parsedPage)
 
+  // Parse per_page param: display value (12/25/50) → actual slice count (12/24/48)
+  const rawPerPage = parseInt(sp(searchParams.per_page) || String(PER_PAGE), 10)
+  const perPage = rawPerPage in PER_PAGE_OPTIONS ? PER_PAGE_OPTIONS[rawPerPage] : PER_PAGE
+
   // Service filter params
   const activeServices: string[] = []
   for (const key of Object.keys(SERVICE_FILTERS)) {
@@ -467,6 +472,8 @@ export default async function CityPage({ params, searchParams }: Props) {
           </div>
         )}
 
+        <CityHelpfulResources state={stateName} city={cityName} basePath={basePath} />
+
         <div className="mt-14 max-w-3xl">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">
             Backflow Testing FAQ for {cityName}, {stateName}
@@ -502,12 +509,12 @@ export default async function CityPage({ params, searchParams }: Props) {
 
   // ── Paginate (server-side slice) ─────────────────────────────────────
   const total      = filtered.length
-  const totalPages = Math.ceil(total / PER_PAGE)
+  const totalPages = Math.ceil(total / perPage)
 
   // 404 for page numbers beyond the last valid page
   if (totalPages > 0 && page > totalPages) notFound()
 
-  const providers = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE)
+  const providers = filtered.slice((page - 1) * perPage, page * perPage)
 
   // Build a clean searchParams record (without `page`) for Pagination link building
   const filterParams: Record<string, string> = {}
@@ -586,6 +593,7 @@ export default async function CityPage({ params, searchParams }: Props) {
         testing={testing}
         sort={sort}
         activeServices={activeServices}
+        perPage={rawPerPage in PER_PAGE_OPTIONS ? rawPerPage : PER_PAGE}
       />
 
       {/* Provider grid */}
@@ -618,12 +626,15 @@ export default async function CityPage({ params, searchParams }: Props) {
             page={page}
             totalPages={totalPages}
             total={total}
-            perPage={PER_PAGE}
+            perPage={perPage}
             basePath={basePath}
             searchParams={filterParams}
           />
         </div>
       )}
+
+      {/* Helpful resources */}
+      <CityHelpfulResources state={stateName} city={cityName} basePath={basePath} />
 
       {/* FAQ section */}
       <div className="mt-14">
