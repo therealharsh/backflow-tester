@@ -1,364 +1,212 @@
-# Google Maps Scraper - Outscraper Edition
+# Crawler Pipeline
 
-Production-grade Google Maps scraper for backflow service directory MVP.
+End-to-end pipeline to discover, verify, and ingest backflow service providers from Google Maps into the Supabase database.
 
-## Features
+## Pipeline Overview
 
-### Scraper (`crawler_outscraper.py`)
-- Scrapes Google Maps listings across 200 US cities and 5 keywords (1000 total queries)
-- Robust error handling with exponential backoff retries
-- Checkpointing system - resume interrupted runs without losing progress
-- Detailed logging to console and file
-- Progress tracking with tqdm
-- Batch processing with configurable rate limiting
-- Works with multiple Outscraper SDK versions
-
-### Data Cleaner (`clean_places.py`)
-- Deduplicates businesses by place_id
-- Filters for backflow-relevant businesses only
-- Normalizes websites (removes tracking params, canonicalizes URLs)
-- Validates and formats phone numbers
-- Cleans coordinates and validates US locations
-- Calculates data quality scores
-- Comprehensive logging and statistics
+```
+target_cities.csv
+    |
+01_outscrape.py        -> raw_places.csv        (Google Maps scrape via Outscraper API)
+    |
+02_clean.py            -> clean_places.csv      (dedup, filter, normalize)
+    |
+03_verify_and_enrich.py -> verified.csv          (Crawl4AI website verification + enrichment)
+    |
+04_upsert_supabase.py  -> providers + cities DB  (idempotent upsert)
+    |
+05_refresh_sitemap.sh  -> rebuilt Next.js app    (sitemap + static pages)
+```
 
 ## Setup
 
-### 1. Create and activate virtual environment
+### 1. Create virtual environment
 
 ```bash
-cd /Users/harsh/crawler
+cd crawler
 python3 -m venv .venv
 source .venv/bin/activate
+pip install -r requirements.txt
+playwright install
 ```
 
-### 2. Install dependencies
+### 2. Environment variables
+
+Create a `.env` file in the **repo root**:
+
+```
+OUTSCRAPER_API_KEY=your-outscraper-api-key
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+```
+
+### 3. Cities file
+
+The pipeline reads `crawler/data/target_cities.csv` with columns:
+
+```
+priority_tier,city,state,metro_or_region,notes
+```
+
+## Running the Pipeline
+
+### Via Make (recommended)
 
 ```bash
-pip install -r crawler/requirements.txt
+# Full pipeline
+make crawl-all
+
+# Individual steps
+make crawl-outscrape
+make crawl-clean
+make crawl-verify
+make crawl-upsert
+make crawl-sitemap
 ```
 
-### 3. Set up API key
-
-Create a `.env` file in the root directory:
+### Via npm (from web/)
 
 ```bash
-echo 'OUTSCRAPER_API_KEY=your_api_key_here' > .env
+npm run crawl:all        # full pipeline
+npm run crawl:outscrape  # step 1 only
+npm run crawl:clean      # step 2 only
+npm run crawl:verify     # step 3 only
+npm run crawl:upsert     # step 4 only
+npm run crawl:sitemap    # step 5 only
 ```
 
-Replace `your_api_key_here` with your actual Outscraper API key.
-
-## Quick Start (Complete Workflow)
+### Manual execution
 
 ```bash
-# 1. Setup (one time)
-source .venv/bin/activate
-pip install -r crawler/requirements.txt
-echo 'OUTSCRAPER_API_KEY=your_key' > .env
+source crawler/.venv/bin/activate
 
-# 2. Test API
-python crawler/outscraper_smoketest.py
+# Step 1: Scrape Google Maps (test with 3 cities first)
+python crawler/01_outscrape.py --cities crawler/data/target_cities.csv --head 3
 
-# 3. Scrape data (test with 10 cities first)
-python crawler/crawler_outscraper.py --cities crawler/00_cities.csv --head 10
+# Step 2: Clean and deduplicate
+python crawler/02_clean.py
 
-# 4. Clean and dedupe
-python crawler/clean_places.py
+# Step 3: Verify websites and extract service tags
+python crawler/03_verify_and_enrich.py --batch-size 10
 
-# 5. Check results
-wc -l crawler/data/clean_places.csv
-head crawler/data/clean_places.csv
+# Step 4: Upsert to Supabase (dry-run first)
+python crawler/04_upsert_supabase.py --dry-run
+python crawler/04_upsert_supabase.py
 
-# 6. Run full scrape (200 cities)
-python crawler/crawler_outscraper.py --cities crawler/00_cities.csv --limit 50
-
-# 7. Clean full dataset
-python crawler/clean_places.py
+# Step 5: Rebuild sitemap
+bash crawler/05_refresh_sitemap.sh
 ```
 
-## Workflow
+## Pipeline Steps
 
-The complete pipeline has two steps:
+### Step 1: `01_outscrape.py` — Google Maps Scrape (Outscraper API)
 
-1. **Scrape** raw data from Google Maps → `raw_places.csv`
-2. **Clean** and deduplicate → `clean_places.csv`
+Scrapes Google Maps listings using the Outscraper API. Returns full business data: name, address, phone, website, rating, reviews, place_id, images, and more.
 
-## Usage
+**Saves money**: At startup, queries Supabase for existing place_ids and filters them from results so you only pay for new data. Use `--no-skip-existing` to re-scrape everything.
 
-### Step 1: Scraping
+**Keywords**: backflow testing, backflow preventer, rpz testing, cross connection control, backflow repair, plumber backflow
 
-#### Run smoketest first
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--cities` | `crawler/data/target_cities.csv` | Cities CSV path |
+| `--batch-size` | 10 | Queries per Outscraper batch |
+| `--limit` | 50 | Max results per query |
+| `--sleep` | 0.5 | Sleep between batches (seconds) |
+| `--head` | 0 | Only first N cities (0 = all) |
+| `--resume` | false | Resume from checkpoint |
+| `--max-retries` | 5 | Retry attempts per batch |
+| `--tier` | 0 | Filter to priority tier (0 = all) |
+| `--no-skip-existing` | false | Re-scrape even if already in DB |
 
-Test your API connection with a single query:
+**Requires**: `OUTSCRAPER_API_KEY` in `.env`
 
-```bash
-python crawler/outscraper_smoketest.py
-```
+**Output**: `crawler/data/raw_places.csv`
 
-Expected output:
-- Shows API key (masked)
-- Sends test query for "backflow testing New York NY USA"
-- Displays number of results and available data fields
-- Confirms the API is working
+### Step 2: `02_clean.py` — Clean & Deduplicate
 
-### Test with first 10 cities
+Filters raw data for quality and relevance:
+- Removes records missing required fields (name, address, city, state, ID)
+- Filters non-operational businesses
+- Quality threshold: reviews > 3 or (has rating and reviews > 10)
+- Backflow relevance scoring (keyword matching in name, categories)
+- Dedup by place_id, then google_id, then normalized name+address
+- Website normalization (strips tracking params, canonicalizes)
 
-Before running the full scraper, test with a small subset:
+**Output**: `crawler/data/clean_places.csv`, `crawler/data/rejected_places.csv`, `crawler/data/cleaning_report.md`
 
-```bash
-python crawler/crawler_outscraper.py \
-  --cities crawler/00_cities.csv \
-  --head 10 \
-  --limit 50 \
-  --batch-size 5
-```
+### Step 3: `03_verify_and_enrich.py` — Website Verification + Enrichment
 
-This will:
-- Scrape only the first 10 cities
-- Run 50 queries (10 cities × 5 keywords)
-- Process in batches of 5 queries
-- Output to `crawler/data/raw_places.csv`
-- Log to `crawler/data/crawler.log`
+Crawls provider websites with Crawl4AI to verify backflow services and extract:
+- **Backflow score** (weighted term matching, tier assignment: testing/service/none)
+- **Service tags** (14 canonical tags: Backflow Testing, RPZ Testing, Residential, etc.)
+- **Service area text** (from "serving..." patterns)
+- **Description snippet** (first ~200 chars of about text)
+- **Booking URL** (links containing "book", "quote", "schedule")
 
-### Run full scraper (200 cities)
+Two-pass strategy: homepage first, then internal service pages if needed.
 
-```bash
-python crawler/crawler_outscraper.py \
-  --cities crawler/00_cities.csv \
-  --limit 50 \
-  --batch-size 10 \
-  --sleep 0.5
-```
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--batch-size` | 25 | Websites per batch |
+| `--max-pages` | 4 | Max pages per site |
+| `--threshold` | 2 | Min backflow score to keep |
+| `--resume` | false | Resume from checkpoint |
 
-This will:
-- Scrape all 200 cities
-- Run 1000 queries (200 cities × 5 keywords)
-- Get up to 50 results per query
-- Process in batches of 10 queries
-- Sleep 0.5s between batches
-- Create checkpoints after each batch
+**Output**: `crawler/data/verified.csv`, `crawler/data/rejected_by_verifier.csv`
 
-### Resume interrupted run
+### Step 4: `04_upsert_supabase.py` — Database Ingestion
 
-If the scraper is interrupted, resume from the last checkpoint:
+Reads verified.csv and upserts to three Supabase tables:
+- **providers** — main business records (on_conflict="place_id")
+- **cities** — aggregated provider counts per city (on_conflict="city_slug,state_code")
+- **provider_services** — canonical service tags (on_conflict="place_id")
 
-```bash
-python crawler/crawler_outscraper.py \
-  --cities crawler/00_cities.csv \
-  --limit 50 \
-  --batch-size 10 \
-  --sleep 0.5 \
-  --resume
-```
+Generates slugs, cleans data types, handles image URL parsing.
 
-The scraper will:
-- Read the last checkpoint from `crawler/data/run_state.json`
-- Skip already completed queries
-- Continue from where it left off
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--dry-run` | false | Show what would be upserted without writing |
+| `--batch-size` | 100 | Providers per upsert batch |
 
-### Step 2: Cleaning
+### Step 5: `05_refresh_sitemap.sh` — Sitemap Rebuild
 
-After scraping, clean and deduplicate the data:
-
-```bash
-python crawler/clean_places.py
-```
-
-This will:
-- Load `crawler/data/raw_places.csv`
-- Remove duplicates by place_id
-- Filter for backflow-relevant businesses
-- Normalize websites, phones, categories
-- Validate coordinates (US only)
-- Sort by data quality
-- Output to `crawler/data/clean_places.csv`
-- Log details to `crawler/data/clean_places.log`
-
-#### Custom paths
-
-```bash
-python crawler/clean_places.py \
-  --input crawler/data/raw_places.csv \
-  --output crawler/data/clean_places.csv
-```
-
-## Command Line Options
-
-| Flag | Type | Default | Description |
-|------|------|---------|-------------|
-| `--cities` | string | required | Path to cities CSV file |
-| `--limit` | int | 50 | Max results per query |
-| `--batch-size` | int | 10 | Number of queries per batch |
-| `--sleep` | float | 0.5 | Sleep time between batches (seconds) |
-| `--head` | int | 0 | Only scrape first N cities (0 = all) |
-| `--resume` | flag | false | Resume from checkpoint |
-| `--max-retries` | int | 5 | Maximum retry attempts per batch |
-
-## Command Line Options
-
-### Scraper Options
-
-| Flag | Type | Default | Description |
-|------|------|---------|-------------|
-| `--cities` | string | required | Path to cities CSV file |
-| `--limit` | int | 50 | Max results per query |
-| `--batch-size` | int | 10 | Number of queries per batch |
-| `--sleep` | float | 0.5 | Sleep time between batches (seconds) |
-| `--head` | int | 0 | Only scrape first N cities (0 = all) |
-| `--resume` | flag | false | Resume from checkpoint |
-| `--max-retries` | int | 5 | Maximum retry attempts per batch |
-
-### Cleaner Options
-
-| Flag | Type | Default | Description |
-|------|------|---------|-------------|
-| `--input` | string | crawler/data/raw_places.csv | Path to raw CSV file |
-| `--output` | string | crawler/data/clean_places.csv | Path to output clean CSV file |
+Runs `npm run build` in `web/` to regenerate the sitemap and static pages. The sitemap generator fetches live data from Supabase, so new providers are automatically included.
 
 ## Output Files
 
-### `crawler/data/raw_places.csv`
+| File | Description |
+|------|-------------|
+| `data/raw_places.csv` | Raw Google Maps results |
+| `data/run_state.json` | Scraper checkpoint |
+| `data/clean_places.csv` | Cleaned, deduplicated records |
+| `data/rejected_places.csv` | Records removed during cleaning |
+| `data/cleaning_report.md` | Cleaning statistics |
+| `data/verified.csv` | Website-verified providers with service tags |
+| `data/rejected_by_verifier.csv` | Failed verification |
+| `data/verifier_report.md` | Verification statistics |
+| `data/crawler.log` | Step 1 log |
+| `data/02_clean_places.log` | Step 2 log |
+| `data/verifier.log` | Step 3 log |
 
-Raw scraper output containing all scraped places. Columns include:
-- `name` - Business name
-- `address` - Full address
-- `city` - City
-- `state` - State
-- `zip` - ZIP code
-- `phone` - Phone number
-- `website` - Website URL
-- `rating` - Google rating
-- `reviews` - Number of reviews
-- And many more fields from Google Maps
+## Resume / Checkpoint
 
-### `crawler/data/run_state.json`
+Steps 1 and 3 support `--resume` to continue from where they left off:
 
-Checkpoint file for resuming interrupted runs:
-```json
-{
-  "next_query_index": 450,
-  "completed_batches": [0, 10, 20, ...],
-  "timestamp": "2026-02-17 14:32:15"
-}
-```
-
-### `crawler/data/clean_places.csv`
-
-Cleaned and deduplicated data ready for your directory. Columns:
-- `place_id` - Google place ID (unique identifier)
-- `name` - Business name
-- `full_address` - Complete address
-- `city` - City name
-- `state` - State abbreviation
-- `zip` - ZIP code
-- `country` - Country (USA)
-- `latitude` - Latitude coordinate
-- `longitude` - Longitude coordinate
-- `phone` - Normalized phone number (XXX) XXX-XXXX format
-- `website` - Cleaned, canonical website URL
-- `categories` - Comma-separated business categories
-- `rating` - Google rating (0-5)
-- `reviews` - Number of reviews
-
-### `crawler/data/crawler.log`
-
-Scraper log file with timestamps:
-- Run configuration
-- Batch progress
-- Sample queries
-- Retry attempts
-- Results count
-- Errors and warnings
-
-### `crawler/data/clean_places.log`
-
-Cleaner log file with:
-- Records processed at each step
-- Deduplication statistics
-- Data completeness metrics
-- Top cities and categories
-- Quality score distributions
-
-## Keywords
-
-The scraper uses these 5 keywords:
-1. "backflow testing"
-2. "backflow preventer"
-3. "rpz testing"
-4. "cross connection control"
-5. "backflow repair"
-
-Each keyword is combined with each city/state to form queries like:
-- "backflow testing New York NY USA"
-- "backflow preventer Los Angeles CA USA"
-- etc.
-
-## Error Handling
-
-The scraper includes robust error handling:
-
-1. **Exponential backoff retries**: Failed batches are retried up to 5 times with increasing delays (1s, 2s, 4s, 8s, 16s)
-2. **Timeout protection**: Each batch has a 120-second timeout (macOS compatible)
-3. **Checkpoint system**: Progress is saved after every successful batch
-4. **Graceful degradation**: Handles different Outscraper SDK versions and result formats
-
-## Troubleshooting
-
-### API key not found
-```
-ERROR: OUTSCRAPER_API_KEY not found in environment
-```
-**Solution**: Create a `.env` file with your API key (see step 3 in Setup)
-
-### Outscraper method not found
-```
-ERROR: Client has neither google_maps_search_v2 nor google_maps_search
-```
-**Solution**: Update the outscraper package:
 ```bash
-pip install --upgrade outscraper
+# If step 1 was interrupted:
+python crawler/01_outscrape.py --resume
+
+# If step 3 was interrupted:
+python crawler/03_verify_and_enrich.py --resume
 ```
 
-### Batch timeout
-```
-WARNING: Batch timed out after 120s
-```
-**Solution**: This is normal for slow responses. The scraper will automatically retry. If it happens frequently, reduce `--batch-size`.
+Checkpoint state is saved to `data/run_state.json` (step 1) and `data/verifier_state.json` (step 3).
 
-### Out of API credits
-```
-Failed to scrape: ... insufficient credits ...
-```
-**Solution**: Add more credits to your Outscraper account at https://app.outscraper.com/
+## Environment Variables
 
-## Performance Tips
-
-1. **Start small**: Always test with `--head 10` first
-2. **Adjust batch size**: Larger batches are faster but may timeout. Start with 10, adjust based on your API performance.
-3. **Monitor progress**: Watch `crawler/data/crawler.log` in real-time:
-   ```bash
-   tail -f crawler/data/crawler.log
-   ```
-4. **Check results**: Monitor output file growth:
-   ```bash
-   wc -l crawler/data/raw_places.csv
-   ```
-
-## Full Run Estimates
-
-With 200 cities × 5 keywords = 1000 queries:
-- **Batch size 10**: 100 batches
-- **Sleep 0.5s**: ~50 seconds of sleep time
-- **API time**: Varies by Outscraper server load (typically 2-5s per batch)
-- **Total time**: 5-10 minutes for full run
-
-## Support
-
-For issues with:
-- **This scraper**: Check logs in `crawler/data/crawler.log`
-- **Outscraper API**: Visit https://app.outscraper.com/
-- **API documentation**: https://github.com/outscraper/outscraper-python
-
-## License
-
-MIT
+| Variable | Required By | Description |
+|----------|-------------|-------------|
+| `OUTSCRAPER_API_KEY` | Step 1 | Outscraper API key |
+| `SUPABASE_URL` | Steps 1, 4 | Supabase project URL (step 1 uses it to skip existing) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Steps 1, 4 | Supabase service role key |

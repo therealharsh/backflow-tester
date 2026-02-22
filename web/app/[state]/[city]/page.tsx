@@ -1,3 +1,5 @@
+export const revalidate = 3600 // refresh from DB every hour
+
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'

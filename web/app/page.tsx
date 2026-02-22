@@ -1,3 +1,5 @@
+export const revalidate = 3600 // refresh from DB every hour
+
 import type { Metadata } from 'next'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -274,7 +276,7 @@ export default async function HomePage() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 sm:gap-4 text-center sm:divide-x divide-gray-100">
             {[
               { label: 'Verified Providers', value: `${totalProviders.toLocaleString()}+`, icon: <Users className="w-5 h-5" /> },
-              { label: 'States Covered', value: `${states.length}`, icon: <Globe className="w-5 h-5" /> },
+              { label: 'States & DC Covered', value: `${states.length}`, icon: <Globe className="w-5 h-5" /> },
               { label: 'Cities Listed', value: `${(cities?.length ?? 0).toLocaleString()}+`, icon: <Building2 className="w-5 h-5" /> },
             ].map(({ label, value, icon }, i) => (
               <div key={label} className="px-4 flex flex-col items-center animate-fade-up" style={{ animationDelay: `${i * 150}ms` }}>
