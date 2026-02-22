@@ -3,10 +3,11 @@ export const dynamic = 'force-dynamic'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { createServerClient } from '@/lib/supabase'
+import { createServerClient, PER_PAGE } from '@/lib/supabase'
 import ProviderCard from '@/components/ProviderCard'
 import ListingTracker from '@/components/ListingTracker'
 import Filters from '@/components/Filters'
+import Pagination from '@/components/Pagination'
 import FAQAccordion from '@/components/FAQAccordion'
 import PlacesSearchBar from '@/components/PlacesSearchBar'
 import type { Provider } from '@/types'
@@ -174,6 +175,11 @@ export default async function SearchPage({ searchParams }: Props) {
     if (sp(searchParams[key]) === '1') activeServices.push(key)
   }
 
+  // ── Parse page param ───────────────────────────────────────────────────
+  const rawPage    = sp(searchParams.page)
+  const parsedPage = parseInt(rawPage || '1', 10)
+  const page       = (!rawPage || isNaN(parsedPage) || parsedPage < 1) ? 1 : parsedPage
+
   // ── Variables we'll populate ──────────────────────────────────────────
   let providers: ProviderWithDistance[] = []
   let searchMode: 'proximity' | 'exact' | 'text' | '' = ''
@@ -215,7 +221,7 @@ export default async function SearchPage({ searchParams }: Props) {
       lat,
       lon: lng,
       radius_miles: 20,
-      max_results: 50,
+      max_results: 200,
       state_filter: stateFilter,
     })
 
@@ -332,7 +338,7 @@ export default async function SearchPage({ searchParams }: Props) {
           lat: geo.lat,
           lon: geo.lon,
           radius_miles: 20,
-          max_results: 50,
+          max_results: 200,
           state_filter: stateFilter,
         })
 
@@ -345,7 +351,7 @@ export default async function SearchPage({ searchParams }: Props) {
             lat: geo.lat,
             lon: geo.lon,
             radius_miles: 30,
-            max_results: 50,
+            max_results: 200,
             state_filter: stateFilter,
           })
           if (wide && wide.length > 0) {
@@ -424,6 +430,17 @@ export default async function SearchPage({ searchParams }: Props) {
     } else {
       filtered.sort((a, b) => (b.premium_rank ?? 0) - (a.premium_rank ?? 0) || b.reviews - a.reviews)
     }
+  }
+
+  // ── Paginate (server-side slice) ──────────────────────────────────────
+  const total      = filtered.length
+  const totalPages = Math.ceil(total / PER_PAGE)
+  const pageProviders = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE)
+
+  // Build search params for Pagination links (preserve all query/filter params, exclude page)
+  const paginationParams: Record<string, string> = {}
+  for (const [k, v] of Object.entries(searchParams)) {
+    if (k !== 'page' && typeof v === 'string' && v) paginationParams[k] = v
   }
 
   // ── Nearby cities ─────────────────────────────────────────────────────
@@ -514,8 +531,8 @@ export default async function SearchPage({ searchParams }: Props) {
 
       {/* Provider count */}
       <p className="text-gray-500 mb-4">
-        {filtered.length > 0
-          ? `${filtered.length} provider${filtered.length !== 1 ? 's' : ''} found`
+        {total > 0
+          ? `${total} provider${total !== 1 ? 's' : ''} found`
           : providers.length === 0
             ? ''
             : `0 of ${providers.length} providers match your filters`}
@@ -555,14 +572,14 @@ export default async function SearchPage({ searchParams }: Props) {
             </Link>
           )}
         </div>
-      ) : filtered.length > 0 ? (
+      ) : pageProviders.length > 0 ? (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 mt-6">
-          {filtered.map((p, i) => (
+          {pageProviders.map((p, i) => (
             <ListingTracker
               key={p.place_id}
               providerSlug={p.provider_slug}
               providerName={p.name}
-              position={i}
+              position={(page - 1) * PER_PAGE + i}
               isPremium={!!p.is_premium}
               pageType="search"
             >
@@ -574,6 +591,20 @@ export default async function SearchPage({ searchParams }: Props) {
           ))}
         </div>
       ) : null}
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="mt-8">
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            total={total}
+            perPage={PER_PAGE}
+            basePath="/search"
+            searchParams={paginationParams}
+          />
+        </div>
+      )}
 
       {/* FAQ section */}
       {faqItems && providers.length > 0 && (
