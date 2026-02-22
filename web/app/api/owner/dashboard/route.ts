@@ -62,6 +62,9 @@ export async function GET(request: Request) {
         .single(),
     ])
 
+    console.log('[owner/dashboard] placeId:', placeId)
+    console.log('[owner/dashboard] subscription query:', { data: subRes.data, error: subRes.error?.message })
+
     return NextResponse.json({
       provider: providerRes.data,
       subscription: subRes.data ?? { tier: 'free', status: 'inactive' },
